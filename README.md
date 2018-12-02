@@ -137,7 +137,7 @@ To download the full library, with tests,
 git clone github.com/donbright/earcutr
 cd earcutr
 cargo build
-cargo test
+cargo test -- --nocapture --test-threads=1
 ```
 
 #### Ports to other languages
