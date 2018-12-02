@@ -1,7 +1,7 @@
 ## Earcutr
 
 Polygon triangulation library, translated into Rust computer language from
-the original Earcut project.
+the original Earcut project from MapBox. https://github.com/mapbox/earcut
 
 #### Data layout
 
@@ -16,11 +16,11 @@ The first contour is the 'body' of the shape, the other contours are 'holes'
 For example a rectangle could be [ [ [0,0],[7,0],[7,4],[0,4] ] ]
 This has a single contour, with four points.
 
-_______
-|     |
-|     |
-|     |
-|_____|
+    _______
+    |     |
+    |     |
+    |     |
+    |_____|
  
 A square with a triangle shaped hole in the middle would be as follows
 [ [ [0,0],[7,0],[7,4],[0,4] ],
@@ -28,26 +28,29 @@ A square with a triangle shaped hole in the middle would be as follows
 
 This has two contours, the first with four points, the second with three points.
 
-_______
-|     |
-|  /| |
-| /_| |
-|_____|
+    _______
+    |     |
+    |  /| |
+    | /_| |
+    |_____|
 
 Now, we can convert these arrays of coordinates into a single array, by 
 having some additional information stored alongside it.
 
 For the rectangle, here is how the data looks: [ [ [0,0],[7,0],[7,4],[0,4] ] ]
 After we convert it to a single array, it looks like this:
- data [ 0,0,7,0,7,4,0,4 ]
- holeindexes: []
- dimensions: 2
+
+    data [ 0,0,7,0,7,4,0,4 ]
+    holeindexes: []
+    dimensions: 2
 Notice we can still interpret the data as a sequence of points.
 
 Now, lets try the same with the rectangle+hole:
- data [ 0,0,7,0,7,4,0,4,1,1,3,1,3,3  ]
- holeindexes: [ 8 ]
- dimensions: 2
+
+    data [ 0,0,7,0,7,4,0,4,1,1,3,1,3,3  ]
+    holeindexes: [ 8 ]
+    dimensions: 2
+
 Notice we can still interpret the data as a sequence of points,
 and by looking at 'hole indexes' we can figure out where the first contour
 ends and the next begins.
@@ -73,7 +76,7 @@ and [Triangulation by Ear Clipping](http://www.geometrictools.com/Documentation/
 
 #### Why another triangulation library?
 
-The aim of this project is to create a Rust triangulation library
+The aim of this project is to create a Rust language triangulation library
 that is simple enough to understand by a single person
 while being robust enough to handle most practical datasets without crashing or producing garbage.
 
@@ -134,10 +137,10 @@ To download the full library, with tests,
 git clone github.com/donbright/earcutr
 cd earcutr
 cargo build
-cargo test
+cargo test -- --nocapture --test-threads=1
 ```
 
 #### Ports to other languages
 
 - [mapbox/earcut.hpp](https://github.com/mapbox/earcut.hpp) (C++11)
-
+- https://github.com/mapbox/earcut (javascript)
