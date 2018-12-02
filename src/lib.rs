@@ -122,7 +122,7 @@ impl LL {
         inv_size: f32,
         pass: usize,
     ) {
-        let v = self.nodes;
+        let v = &self.nodes;
         if v.len() == 0 {
             return;
         }
@@ -134,6 +134,7 @@ impl LL {
 	        // ear = ?
         }
 
+/*
         //let stop = (ear, prev, next);
 		let stop = 0; //ear?-
         let prev = 0;
@@ -144,9 +145,9 @@ impl LL {
             next = v[ear].next;
             let mut test = false;
             if inv_size > 0.0 {
-//                test = is_ear_hashed(ear, minx, miny, inv_size);
+                test = is_ear_hashed(ear, minx, miny, inv_size);
             } else {
-//                test = is_ear(ear);
+                test = is_ear(ear);
             }
             if test {
                 // cut off the triangle
@@ -162,6 +163,8 @@ impl LL {
                 continue;
             }
         }
+*/
+
         /*    while (ear.prev !== ear.next) {
         prev = ear.prev;
         next = ear.next;
@@ -236,7 +239,7 @@ fn maxf(a: f32, b: f32) -> f32 {
     return b;
 }
 
-pub fn earcut(data: &Vec<f32>, hole_indices: Vec<usize>, ndim: usize) -> &Vec<usize> {
+pub fn earcut(data: &Vec<f32>, hole_indices: Vec<usize>, ndim: usize) -> Vec<usize> {
     let mut dim = ndim;
     if dim == 0 {
         dim = 2
@@ -248,7 +251,7 @@ pub fn earcut(data: &Vec<f32>, hole_indices: Vec<usize>, ndim: usize) -> &Vec<us
     }
     let mut ll = linked_list(data, 0, outer_len, dim, true);
     ll.dump();
-    let mut triangles: &mut Vec<usize> = &mut Vec::new();
+    let mut triangles: Vec<usize> = Vec::new();
     if ll.nodes.len() == 0 {
         return triangles;
     }
