@@ -1,7 +1,7 @@
 ## Earcutr
 
 Polygon triangulation library, translated into Rust computer language from
-the original Earcut project.
+the original Earcut project from MapBox. https://github.com/mapbox/earcut
 
 #### Data layout
 
@@ -76,7 +76,7 @@ and [Triangulation by Ear Clipping](http://www.geometrictools.com/Documentation/
 
 #### Why another triangulation library?
 
-The aim of this project is to create a Rust triangulation library
+The aim of this project is to create a Rust language triangulation library
 that is simple enough to understand by a single person
 while being robust enough to handle most practical datasets without crashing or producing garbage.
 
@@ -143,4 +143,4 @@ cargo test
 #### Ports to other languages
 
 - [mapbox/earcut.hpp](https://github.com/mapbox/earcut.hpp) (C++11)
-
+- https://github.com/mapbox/earcut (javascript)
