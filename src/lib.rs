@@ -79,8 +79,8 @@ impl LL {
         if ll.nodes[p.nextz].i != 0 {
             ll.nodes[p.nextz].prevz = p.prevz;
         }
-        //    if (p.prevZ) p.prevZ.nextZ = p.nextZ;
-        //    if (p.nextZ) p.nextZ.prevZ = p.prevZ;
+        //    if (p.prevz) p.prevz.nextz = p.nextz;
+        //    if (p.nextz) p.nextz.prevz = p.prevz;
     }
     fn new() -> LL {
         LL { nodes: Vec::new() }
@@ -119,7 +119,7 @@ impl LL {
         dim: usize,
         minx: f32,
         miny: f32,
-        inv_size: f32,
+        invsize: f32,
         pass: usize,
     ) {
         let v = &self.nodes;
@@ -129,8 +129,8 @@ impl LL {
 
         let ear = 0;
         // interlink polygon nodes in z-order
-        if pass == 0 && inv_size > 0.0 {
-            //index_curve(ear, minx, miny, inv_size);
+        if pass == 0 && invsize > 0.0 {
+            //index_curve(ear, minx, miny, invsize);
 	        // ear = ?
         }
 
@@ -144,8 +144,8 @@ impl LL {
             prev = v[ear].prev;
             next = v[ear].next;
             let mut test = false;
-            if inv_size > 0.0 {
-                test = is_ear_hashed(ear, minx, miny, inv_size);
+            if invsize > 0.0 {
+                test = is_ear_hashed(ear, minx, miny, invsize);
             } else {
                 test = is_ear(ear);
             }
@@ -168,7 +168,7 @@ impl LL {
         /*    while (ear.prev !== ear.next) {
         prev = ear.prev;
         next = ear.next;
-        if (inv_size ? isEarHashed(ear, minx, miny, inv_size) : isEar(ear)) {
+        if (invsize ? isEarHashed(ear, minx, miny, invsize) : isEar(ear)) {
             // cut off the triangle
             triangles.push(prev.i / dim);
             triangles.push(ear.i / dim);
@@ -189,23 +189,39 @@ impl LL {
         if (ear === stop) {
             // try filtering points and slicing again
             if (!pass) { earcut_linked(filterPoints(ear), triangles, 
-                dim:usize, minx, miny, inv_size, 1);
+                dim:usize, minx, miny, invsize, 1);
 
             // if this didn't work, try curing all small self-intersections locally
             } else if (pass === 1) {
                 ear = cureLocalIntersections(ear, triangles, dim:usize); 
                 earcut_linked(ear, triangles, dim:usize, minx, miny, 
-                inv_size, 2);
+                invsize, 2);
 
             // as a last resort, try splitting the remaining polygon into two
             } else if (pass === 2) {
-                splitEarcut(ear, triangles, dim:usize, minx, miny, inv_size);
+                splitEarcut(ear, triangles, dim:usize, minx, miny, invsize);
             }
 
             break;
         }
     }*/
     } //cut
+	// interlink polygon nodes in z-order
+	fn index_curve(&mut self,start:usize, minx:f32, miny:f32, invsize:f32) {
+	    let mut p = &mut self.nodes[start];
+//    do {
+        if p.z == 0 { p.z = zorder(p.x, p.y, minx, miny, invsize); }
+//        p.prevz = p.prev;
+//        p.nextz = p.next;
+//        p = p.next;
+//    } while (p !== start);
+
+//    p.prevz.nextz = null;
+//    p.prevz = null;
+
+//    sortLinked(p);
+	} // indexcurve
+
 }
 
 // create a circular doubly linked list from polygon points in the
@@ -232,6 +248,28 @@ fn linked_list(data: &Vec<f32>, start: usize, end: usize, dim: usize, clockwise:
     return ll;
 }
 
+// z-order of a point given coords and inverse of the longer side of 
+// data bbox
+fn zorder(xf:f32, yf:f32, minx:f32, miny:f32, invsize:f32) -> u32 {
+    // coords are transformed into non-negative 15-bit integer range
+    let mut x:u32 = 32767 * ((xf - minx) * invsize).round() as u32;
+    let mut y:u32 = 32767 * ((yf - miny) * invsize).round() as u32;
+
+	// todo ... big endian?
+    x = (x | (x << 8)) & 0x00FF00FF;
+    x = (x | (x << 4)) & 0x0F0F0F0F;
+    x = (x | (x << 2)) & 0x33333333;
+    x = (x | (x << 1)) & 0x55555555;
+
+    y = (y | (y << 8)) & 0x00FF00FF;
+    y = (y | (y << 4)) & 0x0F0F0F0F;
+    y = (y | (y << 2)) & 0x33333333;
+    y = (y | (y << 1)) & 0x55555555;
+
+    x | (y << 1)
+}
+
+// return greater of two floating point numbers
 fn maxf(a: f32, b: f32) -> f32 {
     if a > b {
         return a;
@@ -256,7 +294,7 @@ pub fn earcut(data: &Vec<f32>, hole_indices: Vec<usize>, ndim: usize) -> Vec<usi
         return triangles;
     }
 
-    let (mut minx, mut miny, mut maxx, mut maxy, mut x, mut y, mut inv_size) =
+    let (mut minx, mut miny, mut maxx, mut maxy, mut x, mut y, mut invsize) =
         (0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
 
     if has_holes {
@@ -288,17 +326,17 @@ pub fn earcut(data: &Vec<f32>, hole_indices: Vec<usize>, ndim: usize) -> Vec<usi
             }
         }
 
-        // minx, miny and inv_size are later used to transform coords
+        // minx, miny and invsize are later used to transform coords
         // into integers for z-order calculation
-        inv_size = maxf(maxx - minx, maxy - miny);
-        if inv_size != 0.0 {
-            inv_size = 1.0 / inv_size;
+        invsize = maxf(maxx - minx, maxy - miny);
+        if invsize != 0.0 {
+            invsize = 1.0 / invsize;
         } else {
-            inv_size = 0.0;
+            invsize = 0.0;
         }
     }
 
-    ll.earcut_linked(&triangles, dim, minx, miny, inv_size, 0);
+    ll.earcut_linked(&triangles, dim, minx, miny, invsize, 0);
 
     return triangles;
 }
@@ -349,7 +387,7 @@ fn isEar(ear) {
     return true;
 }
 
-fn isEarHashed(ear, minx, miny, inv_size) {
+fn isEarHashed(ear, minx, miny, invsize) {
     let a = ear.prev,
         b = ear,
         c = ear.next;
@@ -363,23 +401,23 @@ fn isEarHashed(ear, minx, miny, inv_size) {
         maxTY = a.y > b.y ? (a.y > c.y ? a.y : c.y) : (b.y > c.y ? b.y : c.y);
 
     // z-order range for the current triangle bbox;
-    let minZ = zOrder(minTX, minTY, minx, miny, inv_size),
-        maxZ = zOrder(maxTX, maxTY, minx, miny, inv_size);
+    let minZ = zorder(minTX, minTY, minx, miny, invsize),
+        maxZ = zorder(maxTX, maxTY, minx, miny, invsize);
 
-    let p = ear.prevZ,
-        n = ear.nextZ;
+    let p = ear.prevz,
+        n = ear.nextz;
 
     // look for points inside the triangle in both directions
     while (p && p.z >= minZ && n && n.z <= maxZ) {
         if (p !== ear.prev && p !== ear.next &&
             pointInTriangle(a.x, a.y, b.x, b.y, c.x, c.y, p.x, p.y) &&
             _area(p.prev, p, p.next) >= 0) return false;
-        p = p.prevZ;
+        p = p.prevz;
 
         if (n !== ear.prev && n !== ear.next &&
             pointInTriangle(a.x, a.y, b.x, b.y, c.x, c.y, n.x, n.y) &&
             _area(n.prev, n, n.next) >= 0) return false;
-        n = n.nextZ;
+        n = n.nextz;
     }
 
     // look for remaining points in decreasing z-order
@@ -387,7 +425,7 @@ fn isEarHashed(ear, minx, miny, inv_size) {
         if (p !== ear.prev && p !== ear.next &&
             pointInTriangle(a.x, a.y, b.x, b.y, c.x, c.y, p.x, p.y) &&
             _area(p.prev, p, p.next) >= 0) return false;
-        p = p.prevZ;
+        p = p.prevz;
     }
 
     // look for remaining points in increasing z-order
@@ -395,7 +433,7 @@ fn isEarHashed(ear, minx, miny, inv_size) {
         if (n !== ear.prev && n !== ear.next &&
             pointInTriangle(a.x, a.y, b.x, b.y, c.x, c.y, n.x, n.y) &&
             _area(n.prev, n, n.next) >= 0) return false;
-        n = n.nextZ;
+        n = n.nextz;
     }
 
     return true;
@@ -427,7 +465,7 @@ fn cureLocalIntersections(start, triangles, dim:usize) {
 }
 
 // try splitting polygon into two and triangulate them independently
-fn splitEarcut(start, triangles, dim:usize, minx, miny, inv_size) {
+fn splitEarcut(start, triangles, dim:usize, minx, miny, invsize) {
     // look for a valid diagonal that divides the polygon into two
     let a = start;
     do {
@@ -442,8 +480,8 @@ fn splitEarcut(start, triangles, dim:usize, minx, miny, inv_size) {
                 c = filterPoints(c, c.next);
 
                 // run earcut on each half
-                earcut_linked(a, triangles, dim:usize, minx, miny, inv_size);
-                earcut_linked(c, triangles, dim:usize, minx, miny, inv_size);
+                earcut_linked(a, triangles, dim:usize, minx, miny, invsize);
+                earcut_linked(c, triangles, dim:usize, minx, miny, invsize);
                 return;
             }
             b = b.next;
@@ -524,22 +562,6 @@ fn findHoleBridge(hole, outerNode) {
     return m;
 }
 
-// interlink polygon nodes in z-order
-fn index_curve(start, minx, miny, inv_size) {
-    let p = start;
-    do {
-        if (p.z === null) p.z = zOrder(p.x, p.y, minx, miny, inv_size);
-        p.prevZ = p.prev;
-        p.nextZ = p.next;
-        p = p.next;
-    } while (p !== start);
-
-    p.prevZ.nextZ = null;
-    p.prevZ = null;
-
-    sortLinked(p);
-}
-
 // Simon Tatham's linked list merge sort algorithm
 // http://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.html
 fn sortLinked(list) {
@@ -558,7 +580,7 @@ fn sortLinked(list) {
             pSize = 0;
             for (i = 0; i < inSize; i++) {
                 pSize++;
-                q = q.nextZ;
+                q = q.nextz;
                 if (!q) break;
             }
             qSize = inSize;
@@ -567,49 +589,30 @@ fn sortLinked(list) {
 
                 if (pSize !== 0 && (qSize === 0 || !q || p.z <= q.z)) {
                     e = p;
-                    p = p.nextZ;
+                    p = p.nextz;
                     pSize--;
                 } else {
                     e = q;
-                    q = q.nextZ;
+                    q = q.nextz;
                     qSize--;
                 }
 
-                if (tail) tail.nextZ = e;
+                if (tail) tail.nextz = e;
                 else list = e;
 
-                e.prevZ = tail;
+                e.prevz = tail;
                 tail = e;
             }
 
             p = q;
         }
 
-        tail.nextZ = null;
+        tail.nextz = null;
         inSize *= 2;
 
     } while (numMerges > 1);
 
     return list;
-}
-
-// z-order of a point given coords and inverse of the longer side of data bbox
-fn zOrder(x, y, minx, miny, inv_size) {
-    // coords are transformed into non-negative 15-bit integer range
-    x = 32767 * (x - minx) * inv_size;
-    y = 32767 * (y - miny) * inv_size;
-
-    x = (x | (x << 8)) & 0x00FF00FF;
-    x = (x | (x << 4)) & 0x0F0F0F0F;
-    x = (x | (x << 2)) & 0x33333333;
-    x = (x | (x << 1)) & 0x55555555;
-
-    y = (y | (y << 8)) & 0x00FF00FF;
-    y = (y | (y << 4)) & 0x0F0F0F0F;
-    y = (y | (y << 2)) & 0x33333333;
-    y = (y | (y << 1)) & 0x55555555;
-
-    return x | (y << 1);
 }
 
 // find the leftmost node of a polygon ring
