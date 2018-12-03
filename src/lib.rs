@@ -2,6 +2,9 @@ pub fn add_two(a: i32) -> i32 {
     a + 2
 }
 
+static MAGICNULL: usize = 0x777A91CC;
+static DEBUG: bool = true;
+
 impl Node {
     fn new(i: usize, x: f32, y: f32) -> Node {
         Node {
@@ -11,8 +14,8 @@ impl Node {
             prev: 0,
             next: 0,
             z: 0,
-            nextz: 0,
-            prevz: 0,
+            nextz: MAGICNULL,
+            prevz: MAGICNULL,
             steiner: false,
         }
     }
@@ -39,13 +42,13 @@ impl LL {
     fn dump(&self) {
         println!("LL, nodes: {}", self.nodes.len());
         println!(
-            " {:>3} {:>3} {:>3} {:>3} {:>6} {:>6}",
-            "vi", "i", "n", "p", "x", "y"
+            " {:>3} {:>3} {:>3} {:>3} {:>6} {:>6} {:>3} {:>3} ",
+            "vi", "i", "n", "p", "x", "y", "nz", "pz"
         );
         for (vi, n) in self.nodes.iter().enumerate() {
             println!(
-                " {:>3} {:>3} {:>3} {:>3} {:>6} {:>6}",
-                vi, n.i, n.next, n.prev, n.x, n.y
+                " {:>3} {:>3} {:>3} {:>3} {:>6} {:>6} {:>3} {:>3} ",
+                vi, n.i, n.next, n.prev, n.x, n.y, n.nextz, n.prevz
             );
         }
     }
@@ -87,11 +90,12 @@ impl LL {
     }
     // link every hole into the outer loop, producing a single-ring polygon
     // without holes
-    fn eliminate_holes(&self, data: &Vec<f32>, hole_indices: Vec<usize>, dim: usize) {
+    fn eliminate_holes(&mut self, data: &Vec<f32>, hole_indices: 
+Vec<usize>, dim: usize) {
         /*    let queue = [],
     let (i, len, start, end, list) 
 
-    for (i = 0, len = hole_indices.len(); i < len; i++) {
+    for (i = 0, len = hole_indices.len(); i < len; i+=1) {
         start = hole_indices[i] * dim;
         end = i < len - 1 ? hole_indices[i + 1] * dim : data.len();
         list = linkedList(data, start, end, dim:usize, false);
@@ -102,7 +106,7 @@ impl LL {
     queue.sort(compareX);
 
     // process holes from left to right
-    for (i = 0; i < queue.len(); i++) {
+    for (i = 0; i < queue.len(); i+=1) {
         eliminateHole(queue[i], outerNode);
         outerNode = filterPoints(outerNode, outerNode.next);
     }
@@ -115,26 +119,25 @@ impl LL {
     // list)
     fn earcut_linked(
         &mut self,
-        mut triangles: &Vec<usize>,
+        triangles: &Vec<usize>,
         dim: usize,
         minx: f32,
         miny: f32,
         invsize: f32,
         pass: usize,
     ) {
-        let v = &self.nodes;
-        if v.len() == 0 {
+		if DEBUG { println!("earcut_linked nodes:{} tris:{} dm:{} mx:{} my:{} invs:{} pas:{}",self.nodes.len(),triangles.len(),dim,minx,miny,invsize,pass); }
+        if self.nodes.len() == 0 {
             return;
         }
 
-        let ear = 0;
         // interlink polygon nodes in z-order
+		// note this does nothing for smaller data len, b/c invsize will be 0
         if pass == 0 && invsize > 0.0 {
-            //index_curve(ear, minx, miny, invsize);
-	        // ear = ?
+            self.index_curve( 0, minx, miny, invsize);
         }
 
-/*
+        /*
         //let stop = (ear, prev, next);
 		let stop = 0; //ear?-
         let prev = 0;
@@ -165,7 +168,7 @@ impl LL {
         }
 */
 
-        /*    while (ear.prev !== ear.next) {
+        /*    while (ear.prev != ear.next) {
         prev = ear.prev;
         next = ear.next;
         if (invsize ? isEarHashed(ear, minx, miny, invsize) : isEar(ear)) {
@@ -205,23 +208,100 @@ impl LL {
             break;
         }
     }*/
+		if DEBUG { println!("earcut_linked end"); }
     } //cut
-	// interlink polygon nodes in z-order
-	fn index_curve(&mut self,start:usize, minx:f32, miny:f32, invsize:f32) {
-	    let mut p = &mut self.nodes[start];
-//    do {
-        if p.z == 0 { p.z = zorder(p.x, p.y, minx, miny, invsize); }
-//        p.prevz = p.prev;
-//        p.nextz = p.next;
-//        p = p.next;
-//    } while (p !== start);
 
-//    p.prevz.nextz = null;
-//    p.prevz = null;
+    // interlink polygon nodes in z-order
+    fn index_curve(&mut self, start: usize, minx: f32, miny: f32, invsize: f32) {
+		if DEBUG { println!("index curve"); }
+		if DEBUG { self.dump(); }
+        let mut nodeidx = start;
+        loop {
+            let mut p = &mut self.nodes[nodeidx];
+            if p.z == MAGICNULL as u32 {
+                p.z = zorder(p.x, p.y, minx, miny, invsize);
+            }
+            p.prevz = p.prev;
+            p.nextz = p.next;
+            nodeidx = p.next;
+            if nodeidx == start {
+                break;
+            }
+        }
 
-//    sortLinked(p);
-	} // indexcurve
+        let pzidx = self.nodes[nodeidx].prevz;
+        self.nodes[pzidx].nextz = MAGICNULL;
+        self.nodes[nodeidx].prevz = MAGICNULL;
+        //    p.prevz.nextz = MAGICNULL;
+        //    p.prevz = MAGICNULL;
 
+        self.sort_linked();
+		if DEBUG { self.dump(); }
+		if DEBUG { println!("index curve end"); }
+    } // indexcurve
+
+    // Simon Tatham's linked list merge sort algorithm
+    // http://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.html
+    fn sort_linked(&mut self) {
+		if DEBUG { println!("sort linked"); }
+		if DEBUG { self.dump(); }
+        let (mut i, mut pidx, mut qidx, mut eidx, mut tailidx, mut nummerges, mut psize, mut qsize) =
+            (0, 0, 0, 0, 0, 0, 0, 0);
+        let mut insize = 1;
+        loop {
+            pidx = 0;
+            let mut listidx = 0;
+            let mut tailidx = 0;
+            nummerges = 0;
+
+            while pidx != MAGICNULL {
+                nummerges += 1;
+                qidx = pidx;
+                psize = 0;
+                for i in 0..insize {
+                    psize += 1;
+                    qidx = self.nodes[qidx.clone()].nextz;
+                    if qidx == MAGICNULL {
+                        break;
+                    }
+                }
+                qsize = insize;
+
+                while psize > 0 || (qsize > 0 && qidx != MAGICNULL) {
+                    if psize != 0
+                        && (qsize == 0 || qidx == MAGICNULL || self.nodes[pidx].z <= self.nodes[qidx].z)
+                    {
+                        eidx = pidx;
+                        pidx = self.nodes[pidx].nextz;
+                        psize -= 1;
+                    } else {
+                        eidx = qidx;
+                        qidx = self.nodes[qidx].nextz;
+                        qsize -= 1;
+                    }
+
+                    if tailidx != MAGICNULL {
+                        self.nodes[tailidx].nextz = eidx;
+                    } else {
+                        listidx = eidx;
+                    }
+
+                    self.nodes[eidx].prevz = tailidx;
+                    tailidx = eidx;
+                }
+
+                pidx = qidx;
+            }
+
+            self.nodes[tailidx].nextz = MAGICNULL;
+            insize *= 2;
+            if nummerges <= 1 {
+                break;
+            }
+        } // while (nummerges > 1);
+		if DEBUG { self.dump(); }
+		if DEBUG { println!("sort linked end"); }
+    } // end sort
 }
 
 // create a circular doubly linked list from polygon points in the
@@ -233,14 +313,14 @@ fn linked_list(data: &Vec<f32>, start: usize, end: usize, dim: usize, clockwise:
         let mut i = start;
         while i < end {
             ll.insert_node(i, data[i], data[i + 1]);
-            ll.dump();
+            //ll.dump();
             i += dim;
         }
     } else {
         let mut i = end - dim;
         while i >= start {
             ll.insert_node(i, data[i], data[i + 1]);
-            ll.dump();
+            //ll.dump();
             i -= dim;
         }
     }
@@ -248,14 +328,14 @@ fn linked_list(data: &Vec<f32>, start: usize, end: usize, dim: usize, clockwise:
     return ll;
 }
 
-// z-order of a point given coords and inverse of the longer side of 
+// z-order of a point given coords and inverse of the longer side of
 // data bbox
-fn zorder(xf:f32, yf:f32, minx:f32, miny:f32, invsize:f32) -> u32 {
+fn zorder(xf: f32, yf: f32, minx: f32, miny: f32, invsize: f32) -> u32 {
     // coords are transformed into non-negative 15-bit integer range
-    let mut x:u32 = 32767 * ((xf - minx) * invsize).round() as u32;
-    let mut y:u32 = 32767 * ((yf - miny) * invsize).round() as u32;
+    let mut x: u32 = 32767 * ((xf - minx) * invsize).round() as u32;
+    let mut y: u32 = 32767 * ((yf - miny) * invsize).round() as u32;
 
-	// todo ... big endian?
+    // todo ... big endian?
     x = (x | (x << 8)) & 0x00FF00FF;
     x = (x | (x << 4)) & 0x0F0F0F0F;
     x = (x | (x << 2)) & 0x33333333;
@@ -278,6 +358,7 @@ fn maxf(a: f32, b: f32) -> f32 {
 }
 
 pub fn earcut(data: &Vec<f32>, hole_indices: Vec<usize>, ndim: usize) -> Vec<usize> {
+	if DEBUG { println!("earcut"); }
     let mut dim = ndim;
     if dim == 0 {
         dim = 2
@@ -289,7 +370,7 @@ pub fn earcut(data: &Vec<f32>, hole_indices: Vec<usize>, ndim: usize) -> Vec<usi
     }
     let mut ll = linked_list(data, 0, outer_len, dim, true);
     ll.dump();
-    let mut triangles: Vec<usize> = Vec::new();
+    let triangles: Vec<usize> = Vec::new();
     if ll.nodes.len() == 0 {
         return triangles;
     }
@@ -303,6 +384,7 @@ pub fn earcut(data: &Vec<f32>, hole_indices: Vec<usize>, ndim: usize) -> Vec<usi
 
     // if the shape is not too simple, we'll use z-order curve hash
     // later; calculate polygon bbox
+	if DEBUG { println!(" data len {}",data.len()); }
     if data.len() > 80 * dim {
         minx = data[0];
         maxx = data[0];
@@ -336,8 +418,10 @@ pub fn earcut(data: &Vec<f32>, hole_indices: Vec<usize>, ndim: usize) -> Vec<usi
         }
     }
 
+	// so basically, for data len < 80*dim, minx,miny are 0
     ll.earcut_linked(&triangles, dim, minx, miny, invsize, 0);
 
+	if DEBUG { println!("earcut end"); }
     return triangles;
 }
 
@@ -362,7 +446,7 @@ fn filterPoints(start, end) {
         } else {
             p = p.next;
         }
-    } while (again || p !== end);
+    } while (again || p != end);
 
     return end;
 }
@@ -378,7 +462,7 @@ fn isEar(ear) {
     // now make sure we don't have other points inside the potential ear
     let p = ear.next.next;
 
-    while (p !== ear.prev) {
+    while (p != ear.prev) {
         if (pointInTriangle(a.x, a.y, b.x, b.y, c.x, c.y, p.x, p.y) &&
             _area(p.prev, p, p.next) >= 0) return false;
         p = p.next;
@@ -409,12 +493,12 @@ fn isEarHashed(ear, minx, miny, invsize) {
 
     // look for points inside the triangle in both directions
     while (p && p.z >= minZ && n && n.z <= maxZ) {
-        if (p !== ear.prev && p !== ear.next &&
+        if (p != ear.prev && p != ear.next &&
             pointInTriangle(a.x, a.y, b.x, b.y, c.x, c.y, p.x, p.y) &&
             _area(p.prev, p, p.next) >= 0) return false;
         p = p.prevz;
 
-        if (n !== ear.prev && n !== ear.next &&
+        if (n != ear.prev && n != ear.next &&
             pointInTriangle(a.x, a.y, b.x, b.y, c.x, c.y, n.x, n.y) &&
             _area(n.prev, n, n.next) >= 0) return false;
         n = n.nextz;
@@ -422,7 +506,7 @@ fn isEarHashed(ear, minx, miny, invsize) {
 
     // look for remaining points in decreasing z-order
     while (p && p.z >= minZ) {
-        if (p !== ear.prev && p !== ear.next &&
+        if (p != ear.prev && p != ear.next &&
             pointInTriangle(a.x, a.y, b.x, b.y, c.x, c.y, p.x, p.y) &&
             _area(p.prev, p, p.next) >= 0) return false;
         p = p.prevz;
@@ -430,7 +514,7 @@ fn isEarHashed(ear, minx, miny, invsize) {
 
     // look for remaining points in increasing z-order
     while (n && n.z <= maxZ) {
-        if (n !== ear.prev && n !== ear.next &&
+        if (n != ear.prev && n != ear.next &&
             pointInTriangle(a.x, a.y, b.x, b.y, c.x, c.y, n.x, n.y) &&
             _area(n.prev, n, n.next) >= 0) return false;
         n = n.nextz;
@@ -459,7 +543,7 @@ fn cureLocalIntersections(start, triangles, dim:usize) {
             p = start = b;
         }
         p = p.next;
-    } while (p !== start);
+    } while (p != start);
 
     return p;
 }
@@ -470,8 +554,8 @@ fn splitEarcut(start, triangles, dim:usize, minx, miny, invsize) {
     let a = start;
     do {
         let b = a.next.next;
-        while (b !== a.prev) {
-            if (a.i !== b.i && isValidDiagonal(a, b)) {
+        while (b != a.prev) {
+            if (a.i != b.i && isValidDiagonal(a, b)) {
                 // split the polygon in two by the diagonal
                 let c = splitPolygon(a, b);
 
@@ -487,7 +571,7 @@ fn splitEarcut(start, triangles, dim:usize, minx, miny, invsize) {
             b = b.next;
         }
         a = a.next;
-    } while (a !== start);
+    } while (a != start);
 }
 
 fn compareX(a, b) {
@@ -514,7 +598,7 @@ fn findHoleBridge(hole, outerNode) {
     // find a segment intersected by a ray from the hole's leftmost point to the left;
     // segment's endpoint with lesser x will be potential connection point
     do {
-        if (hy <= p.y && hy >= p.next.y && p.next.y !== p.y) {
+        if (hy <= p.y && hy >= p.next.y && p.next.y != p.y) {
             let x = p.x + (hy - p.y) * (p.next.x - p.x) / (p.next.y - p.y);
             if (x <= hx && x > qx) {
                 qx = x;
@@ -526,9 +610,9 @@ fn findHoleBridge(hole, outerNode) {
             }
         }
         p = p.next;
-    } while (p !== outerNode);
+    } while (p != outerNode);
 
-    if (!m) return null;
+    if (!m) return MAGICNULL;
 
     if (hx === qx) return m.prev; // hole touches outer segment; pick lower endpoint
 
@@ -544,8 +628,8 @@ fn findHoleBridge(hole, outerNode) {
 
     p = m.next;
 
-    while (p !== stop) {
-        if (hx >= p.x && p.x >= mx && hx !== p.x &&
+    while (p != stop) {
+        if (hx >= p.x && p.x >= mx && hx != p.x &&
                 pointInTriangle(hy < my ? hx : qx, hy, mx, my, hy < my ? qx : hx, hy, p.x, p.y)) {
 
             tan = Math.abs(hy - p.y) / (hx - p.x); // tangential
@@ -562,59 +646,6 @@ fn findHoleBridge(hole, outerNode) {
     return m;
 }
 
-// Simon Tatham's linked list merge sort algorithm
-// http://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.html
-fn sortLinked(list) {
-    let i, p, q, e, tail, numMerges, pSize, qSize,
-        inSize = 1;
-
-    do {
-        p = list;
-        list = null;
-        tail = null;
-        numMerges = 0;
-
-        while (p) {
-            numMerges++;
-            q = p;
-            pSize = 0;
-            for (i = 0; i < inSize; i++) {
-                pSize++;
-                q = q.nextz;
-                if (!q) break;
-            }
-            qSize = inSize;
-
-            while (pSize > 0 || (qSize > 0 && q)) {
-
-                if (pSize !== 0 && (qSize === 0 || !q || p.z <= q.z)) {
-                    e = p;
-                    p = p.nextz;
-                    pSize--;
-                } else {
-                    e = q;
-                    q = q.nextz;
-                    qSize--;
-                }
-
-                if (tail) tail.nextz = e;
-                else list = e;
-
-                e.prevz = tail;
-                tail = e;
-            }
-
-            p = q;
-        }
-
-        tail.nextz = null;
-        inSize *= 2;
-
-    } while (numMerges > 1);
-
-    return list;
-}
-
 // find the leftmost node of a polygon ring
 fn getLeftmost(start) {
     let p = start,
@@ -622,7 +653,7 @@ fn getLeftmost(start) {
     do {
         if (p.x < leftmost.x) leftmost = p;
         p = p.next;
-    } while (p !== start);
+    } while (p != start);
 
     return leftmost;
 }
@@ -636,7 +667,7 @@ fn pointInTriangle(ax, ay, bx, by, cx, cy, px, py) {
 
 // check if a diagonal between two polygon nodes is valid (lies in polygon interior)
 fn isValidDiagonal(a, b) {
-    return a.next.i !== b.i && a.prev.i !== b.i && !intersectsPolygon(a, b) &&
+    return a.next.i != b.i && a.prev.i != b.i && !intersectsPolygon(a, b) &&
            locallyInside(a, b) && locallyInside(b, a) && middleInside(a, b);
 }
 
@@ -654,18 +685,18 @@ fn equals(p1, p2) {
 fn intersects(p1, q1, p2, q2) {
     if ((equals(p1, q1) && equals(p2, q2)) ||
         (equals(p1, q2) && equals(p2, q1))) return true;
-    return _area(p1, q1, p2) > 0 !== _area(p1, q1, q2) > 0 &&
-           _area(p2, q2, p1) > 0 !== _area(p2, q2, q1) > 0;
+    return _area(p1, q1, p2) > 0 != _area(p1, q1, q2) > 0 &&
+           _area(p2, q2, p1) > 0 != _area(p2, q2, q1) > 0;
 }
 
 // check if a polygon diagonal intersects any polygon segments
 fn intersectsPolygon(a, b) {
     let p = a;
     do {
-        if (p.i !== a.i && p.next.i !== a.i && p.i !== b.i && p.next.i !== b.i &&
+        if (p.i != a.i && p.next.i != a.i && p.i != b.i && p.next.i != b.i &&
                 intersects(p, p.next, a, b)) return true;
         p = p.next;
-    } while (p !== a);
+    } while (p != a);
 
     return false;
 }
@@ -684,11 +715,11 @@ fn middleInside(a, b) {
         px = (a.x + b.x) / 2,
         py = (a.y + b.y) / 2;
     do {
-        if (((p.y > py) !== (p.next.y > py)) && p.next.y !== p.y &&
+        if (((p.y > py) != (p.next.y > py)) && p.next.y != p.y &&
                 (px < (p.next.x - p.x) * (py - p.y) / (p.next.y - p.y) + p.x))
             inside = !inside;
         p = p.next;
-    } while (p !== a);
+    } while (p != a);
 
     return inside;
 }
@@ -736,8 +767,12 @@ fn insertNode(i, x, y, last) {
 
 // return a percentage difference between the polygon _area and its
 // triangulation _area; used to verify correctness of triangulation
-fn deviation(data: Vec<f32>, hole_indices: Vec<usize>, dim: usize, 
-mut triangles: Vec<usize>) -> f32 {
+fn deviation(
+    data: Vec<f32>,
+    hole_indices: Vec<usize>,
+    dim: usize,
+    triangles: Vec<usize>,
+) -> f32 {
     let has_holes = hole_indices.len() > 0;
     let mut outer_len = data.len();
     if has_holes {
