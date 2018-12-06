@@ -138,7 +138,7 @@ fs.readFileSync(path.join(__dirname, "/fixtures/" + filename + ".json")
 #[test]
 fn it_adds_two() {
     println!("integration test");
-    assert_eq!(4, earcutr::add_two(2));
+    assert_eq!(4, 2+2);
 }
 
 #[test]
