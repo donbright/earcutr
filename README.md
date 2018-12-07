@@ -1,5 +1,7 @@
 ## Earcutr
 
+WARNING - in progress, doesnt work yet
+
 Polygon triangulation library, translated into Rust computer language from
 the original Earcut project from MapBox. https://github.com/mapbox/earcut
 
