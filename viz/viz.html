@@ -3,22 +3,29 @@
 <head>
     <title>earcut visualization</title>
     <meta charset='utf-8'>
-    <style>
-        body { margin: 0; padding: 0;}
-    </style>
+	<link rel="stylesheet" type="text/css" href="menu.css">
 </head>
 <body>
+	<div>
+	    <div class="filelist-entry" id="menu">
+	    </div>
+	</div>
 	<div style="text-align:center; 
-				margin: 15px;
-				padding: 10px; 
+				margin-left: 10%;
+				margin: 2%;
+				padding: 2%; 
 				border:1px solid black;">
-	    <canvas id="canvas">
+	    <canvas id="canvas" width="100%" height="100%">
 		</canvas>
 	</div>
+
     <script>module = {}</script>
     <script src='testfiles.js'></script>
     <script src='earcut.js'></script>
     <script src='viz.js'></script>
+<!--
     <script src='animhelp.js'></script>
+-->
+
 </body>
 </html>

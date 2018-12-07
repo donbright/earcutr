@@ -5,3 +5,5 @@
 
 3. to add new data, create a new json data file under ../tests/fixtures
    then run 'makedata.sh' inside this directory on a macOS/linux/bsd system
+
+4. does not show results of rust program yet
