@@ -84,11 +84,12 @@ fn parse_json(rawdata: &str) -> Option<Vec<Vec<Vec<f32>>>> {
 
 fn mkoutput( filename:&str, tris:&Vec<usize>, data:&Vec<Vec<Vec<f32>>>) {
 	println!("save data + triangles: {}, num tris:{}",&filename,tris.len());
-    // this filename also in integration_test.rs and viz.html
+    // this filename + variablename also in integration_test.rs and viz.html
 	let outfile = "viz/testoutput.js";
 	let f = OpenOptions::new().create(true).append(true).open(outfile).unwrap();
-	writeln!(&f,r###"testFiles["{}.json"]={:?};"###,filename,data);
-	writeln!(&f,r###"testFiles["{}.json.triangles"]={:?};"###,filename,tris);
+	writeln!(&f,r###"testOutput["{}.json"]={:?};"###,filename,data);
+	writeln!(&f,r###"testOutput["{}.json.triangles"]={:?};"###,filename,tris);
+	println!("wrote results to {}",outfile);
 }
 
 fn area_test(filename:&str, expected_triangles:u32, expected_deviation:f32) {

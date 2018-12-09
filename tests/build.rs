@@ -59,10 +59,10 @@ fn __testname__() {
         f.write(newtxt.as_bytes()).unwrap();
     }
 
-	// this filename also in integration_test.rs and viz.html
+	// this filename + variablename also in integration_test.rs and viz.html
 	let ofile = "viz/testoutput.js";
 	match OpenOptions::new().write(true).create(true).truncate(true).open(ofile) {
-		Err(e)=>println!("failed to open {}, {}",ofile,e),
-		Ok(mut f)=>writeln!(f,"testFiles=[];").unwrap(),
+		Err(e)=>println!("failed to create {}, {}",ofile,e),
+		Ok(mut f)=>writeln!(f,"testOutput=[];").unwrap(),
 	};
 }

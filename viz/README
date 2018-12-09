@@ -1,9 +1,18 @@
-1. this allows visualization of the triangles that result from the 
-   earcut algorithm
+This allows visualization of the triangles that result from the 
+earcut algorithm
 
-2. to use it, open 'viz.html' in a circa-2018 web browser
+## To use
 
-3. to add new data, create a new json data file under ../tests/fixtures
-   then run 'makedata.sh' inside this directory on a macOS/linux/bsd system
+$ cargo test -- --test-threads=1
 
-4. does not show results of rust program yet
+The test-threads=1 is required for it to work properly. 
+This test process should generate viz/testoutput.js
+
+Now open the html file with a circa 2018 web browser, for example:
+
+$ firefox viz.html
+
+## Adding new data
+
+To add new data, create a new json data file under ../tests/fixtures
+Re-run the tests, then reload viz.html
