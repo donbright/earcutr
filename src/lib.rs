@@ -106,7 +106,7 @@ impl LL {
     }
     // link every hole into the outer loop, producing a single-ring polygon
     // without holes
-    fn eliminate_holes(&mut self, data: &Vec<f32>, hole_indices: Vec<usize>, dim: usize) {
+    fn eliminate_holes(&mut self, data: &Vec<f32>, hole_indices: &Vec<usize>, dim: usize) {
         /*    let queue = [],
     let (i, len, start, end, list) 
 
@@ -560,7 +560,7 @@ fn maxf(a: f32, b: f32) -> f32 {
     return b;
 }
 
-pub fn earcut(data: &Vec<f32>, hole_indices: Vec<usize>, ndim: usize) -> Vec<usize> {
+pub fn earcut(data: &Vec<f32>, hole_indices: &Vec<usize>, ndim: usize) -> Vec<usize> {
     if DEBUG {
         println!("earcut");
     }
@@ -859,7 +859,7 @@ fn splitPolygon(a, b) {
 
 // return a percentage difference between the polygon area and its
 // triangulation area; used to verify correctness of triangulation
-fn deviation(data: Vec<f32>, hole_indices: Vec<usize>, dim: usize, triangles: Vec<usize>) -> f32 {
+fn deviation(data: Vec<f32>, hole_indices: &Vec<usize>, dim: usize, triangles: Vec<usize>) -> f32 {
     let has_holes = hole_indices.len() > 0;
     let mut outer_len = data.len();
     if has_holes {

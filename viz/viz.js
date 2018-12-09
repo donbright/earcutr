@@ -6,11 +6,13 @@ function mkfunc(name) {
 	}
 };
 
-function prepCanv( testPoints ) {
 	var minX = Infinity,
    	 maxX = -Infinity,
    	 minY = Infinity,
    	 maxY = -Infinity;
+var ratio=1;
+
+function prepCanv( testPoints ) {
 
 	for (var i = 0; i < testPoints[0].length; i++) {
    	 minX = Math.min(minX, testPoints[0][i][0]);
@@ -25,7 +27,7 @@ function prepCanv( testPoints ) {
 	canvas.width = window.innerWidth * 0.9;
 	canvas.height = canvas.width * height / width + 10;
 
-	var ratio = (canvas.width - 10) / width;
+	ratio = (canvas.width - 10) / width;
 
 	if (devicePixelRatio > 1) {
    	 canvas.style.width = canvas.width + 'px';
@@ -36,15 +38,12 @@ function prepCanv( testPoints ) {
 	}
 
 	ctx.lineJoin = 'round';
-	alert(testPoints);
 };
 
 
 function loadTestFile( name ) {
 	testPoints = testFiles[name];
 	prepCanv( testPoints );
-	alert('len test points'+testPoints[0].length);
-	alert('len test file'+Object.keys(testFiles).length);
 	triangles = [];
     ctx.clearRect(0,0,canvas.width,canvas.height);
 
@@ -53,13 +52,14 @@ function loadTestFile( name ) {
 	console.time('earcut');
 	var result = earcut(data.vertices, data.holes, data.dimensions);
 	console.timeEnd('earcut');
+	console.log('result',result);
 
-	for (var i = 0; i < result.length; i++) {
+	for (var i = 0; i < result.length-1; i++) {
 	    var index = result[i];
 		console.log(i,result[i]);
 	    triangles.push([data.vertices[index * data.dimensions], data.vertices[index * data.dimensions + 1]]);
 	}
-		alert('loop'+triangles.length);
+	console.log('tris',triangles);
 	animhelpDrawframe(60);
 }
 
@@ -69,6 +69,7 @@ function animhelpDrawframe(ticks)
 	for (var i = 0; triangles && i < numtodraw; i += 3) {
 		//var fs = 'yellow';
 		var fs = 'hsla('+360*(i/triangles.length)+',100%,50%,0.05)';
+		console.log('fs',i,triangles.length,fs);
 	    drawPoly([triangles.slice(i, i + 3)], 'black', fs, 1);
 	};
 	drawPoly(testPoints, 'black', null, 2);
@@ -90,7 +91,6 @@ function drawPoly(rings, color, fill, w) {
     for (var k = 0; k < rings.length; k++) {
 	    ctx.beginPath();
         var points = rings[k];
-		alert('dpol'+points.length);
         for (var i = 0; i < points.length; i++) {
             var x = (points[i][0] - minX) * ratio + 5;
             var y = (points[i][1] - minY) * ratio + 5;
@@ -118,6 +118,6 @@ var canvas = document.getElementById('canvas');
 var ctx = canvas.getContext('2d');
 var triangles = [];
 var testPoints = [];
-//var testPoints  = [[[661,102],[661,96],[666,96],[666,87],[743,87],[771,87],[771,114],[750,114],[750,113],[742,113],[742,106],[710,106],[710,113],[666,113],[666,112]]];
+var testPoints  = [[[661,102],[661,96],[666,96],[666,87],[743,87],[771,87],[771,114],[750,114],[750,113],[742,113],[742,106],[710,106],[710,113],[666,113],[666,112]]];
 loadTestFile( 'building.json' );
 

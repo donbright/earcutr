@@ -137,47 +137,46 @@ function setupCanvas(viewerid,canvasid) {
 	return canvas;
 }
 
-/* Map from object coordinates to canvas coordinates
-   Example: object has x-coordinates from -50 to 100,
+/* Map from pset coordinates to canvas coordinates
+   Example: pset has x-coordinates from -50 to 100,
    canvas x coordinates go from 0 to 600.
    consider a single point, and its x coordinate.
-   first lets translate x so it goes from 0 to 150. objectx=(inputx-minx).
-   now object x / object width is proportional to canvas x / canvas width
+   first lets translate x so it goes from 0 to 150. psetx=(inputx-minx).
+   now psetx / pset width is proportional to canvas x / canvas width
    ox/ow = cx/cw, therefore cx = (ox/ow)*cw
    (100-(-50))/150 * 600 => 600
    (-50-(-50))/150 * 600 => 0
    (  0-(-50))/150 * 600 => 200
    now, also cx = ox * ( cw/ow ), cw/ow can be the 'xratio', and we have
-   different ratio y direction, y ratio. in order to keep the object's
+   different ratio y direction, y ratio. in order to keep the pset's
    original aspect ratio, only multiply by the lowest of these two ratios.
 */
 class PointMapper {
-	constructor( obj, canvas ) {
+	constructor( pset, canvas ) {
 		this.canvas = canvas;
-		this.bbox = findBoundingBox( obj );
-		console.log("mapper bbox",this.bbox);
-		this.objw = this.bbox.maxx-this.bbox.minx;
-		this.objh = this.bbox.maxy-this.bbox.miny;
-		var wratio = (this.canvas.width-1) / this.objw;
-		var hratio = (this.canvas.height-1) / this.objh;
+		this.bbox = findBoundingBox( pset );
+		console.log("mapper bbox",this.bbox,pset);
+		this.psetw = this.bbox.maxx-this.bbox.minx;
+		this.pseth = this.bbox.maxy-this.bbox.miny;
+		var wratio = (this.canvas.width-1) / this.psetw;
+		var hratio = (this.canvas.height-1) / this.pseth;
 		this.ratio = Math.min(wratio,hratio);
 	}
-	x( objx ) {
-		return (objx-this.bbox.minx)*this.ratio;
+	x( psetx ) {
+		return (psetx-this.bbox.minx)*this.ratio;
 	}
-	y( objy ) {
-		return (objy-this.bbox.miny)*this.ratio;
+	y( psety ) {
+		return (psety-this.bbox.miny)*this.ratio;
 	}
 }
 
-function findBoundingBox( obj ) {
-	var minx = obj[0][0][0], miny = obj[0][0][1];
+function findBoundingBox( Pset ) {
+	var minx = Pset[0][0][0], miny = Pset[0][0][1];
 	var maxx = minx, maxy = miny;
-	for ( var i=0; i<obj.length; i++ ) {
-		var contour = obj[i];
+	for ( var i=0; i<Pset.length; i++ ) {
+		var contour = Pset[i];
 		for ( var j=0; j<contour.length; j++ ) {
 			var point = contour[j];
-			console.log('inside',j,point);
 			maxx = Math.max(maxx,point[0]);
 			maxy = Math.max(maxy,point[1]);
 			minx = Math.min(minx,point[0]);
@@ -187,18 +186,56 @@ function findBoundingBox( obj ) {
 	return {"minx":minx,"miny":miny,"maxx":maxx,"maxy":maxy};
 }
 
-function drawObj( obj, canvas ) {
-	mapr = new PointMapper( obj, canvas );
+function flatten( data ) {
+	vertices = [];
+	dimensions = data[0][0].length;
+	for (var i = 0; i < data.length; i++) {
+        for (var j = 0; j < data[i].length; j++) {
+            for (var d = 0; d < dimensions; d++) vertices.push(data[i][j][d]);
+        }
+	}
+	return vertices;
+}
+
+function makeTriPset( mainPset, tris, mapr ) {
+	dimensions = mainPset[0][0].length;
+	vertices = flatten( mainPset );
+	trianglePset = [];
+	for (var i = 0; i < tris.length; i+=3) {
+		triContour = [];
+		for (var j = 0; j < 3; j++ ) {
+		    ptindex = tris[i+j];
+			x = vertices[ ptindex * dimensions + 0 ];
+			y = vertices[ ptindex * dimensions + 1 ];
+			triContour.push( [x,y] );
+		}
+		trianglePset.push( triContour );
+    }
+	console.log(trianglePset);
+	return trianglePset;
+}
+
+function drawPset( pset, canvas, mapr, labels, lastcontour, fill ) {
 	ctx = canvas.getContext('2d');
-	for ( var i=0; i<obj.length; i++ ) {
-		var contour = obj[i];
+	todraw = Math.min(pset.length,lastcontour);
+	for ( var i=0; i < todraw; i++ ) {
+		var contour = pset[i];
 		ctx.beginPath();
 		ctx.moveTo( mapr.x(contour[0][0]), mapr.y(contour[0][1]) );
-		for ( var j=0; j<contour.length; j++ ) {
+		var fs = 'hsla('+360*(i*3)/(pset.length*3-1)+',100%,50%,0.05)';
+		ctx.fillStyle = fs;
+		console.log('fs',i*3,pset.length*3-1,fs );
+		for ( var j=0; j < contour.length; j++ ) {
 			var point = contour[j];
 			ctx.lineTo( mapr.x(point[0]), mapr.y(point[1]) );
+			if ( labels ) { 
+				ctx.font="40px Verdana";
+				ctx.fillText( j, mapr.x(point[0]), mapr.y(point[1])+30 );
+				ctx.fillText( j, mapr.x(point[0])-30, mapr.y(point[1])+30 );
+			}
 		}
 		ctx.closePath();
+		if (fill) ctx.fill();
 		ctx.stroke();
 	}
 
@@ -206,9 +243,17 @@ function drawObj( obj, canvas ) {
 
 function main() {
 	canvas = setupCanvas("viewer","mycan");
-	var testObj  = [[[661,102],[661,96],[666,96],[666,87],[743,87],[771,87],[771,114],[750,114],[750,113],[742,113],[742,106],[710,106],[710,113],[666,113],[666,112]]];
-//	var testObj = [[[0,0],[0,1000],[100,100],[100,0]]];
-	drawObj( testObj, canvas );
+
+	var testPset = [[[661,112],[661,96],[666,96],[666,87],[743,87],[771,87],[771,114],[750,114],[750,113],[742,113],[742,106],[710,106],[710,113],[666,113],[666,112]]];
+
+	var testTris = [14, 0, 1, 2, 3, 4, 4, 5, 6, 6, 7, 8, 8, 9, 10, 11, 
+		12, 13, 14, 1, 2, 4, 6, 8, 11, 13, 14, 14, 2, 4, 4, 8, 10, 11, 14, 
+		4, 4, 10, 11];
+
+	mapr = new PointMapper( testPset, canvas );
+	triPset = makeTriPset( testPset, testTris, mapr ); 
+	drawPset( testPset, canvas, mapr, true, 1, false );
+	drawPset( triPset, canvas, mapr, false, 39, true );
 }
 
 main();
