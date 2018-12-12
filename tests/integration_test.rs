@@ -1,4 +1,3 @@
-
 extern crate earcutr;
 
 extern crate serde;
@@ -8,18 +7,17 @@ extern crate serde_derive;
 
 use std::fs::File;
 //use std::io::prelude::*;
+use std::fs::OpenOptions;
+use std::io::prelude::*;
 use std::io::Read;
 use std::io::Write;
-use std::io::prelude::*;
-use std::fs::OpenOptions;
 //use serde_json::Error;
 
-fn format_percent( num:f32 ) -> String {
-	return num.to_string();
-//String::from("1.234");
-//    return ((1e8 * num).round() / 1e6).to_string();// + "%";
+fn format_percent(num: f32) -> String {
+    return num.to_string();
+    //String::from("1.234");
+    //    return ((1e8 * num).round() / 1e6).to_string();// + "%";
 }
-
 
 /*
 test("indices-2d", function (t) {
@@ -41,37 +39,37 @@ test("empty", function (t) {
 */
 
 fn parse_json(rawdata: &str) -> Option<Vec<Vec<Vec<f32>>>> {
-	let mut v: Vec<Vec<Vec<f32>>> = Vec::new();
-	match serde_json::from_str::<serde_json::Value>(&rawdata) {
-		Err(e) => println!("error deserializing, {}",e),
-		Ok(jsondata) => {
-			if jsondata.is_array() {
-				let contours = jsondata.as_array().unwrap();
-				println!("deserialize ok, {} contours",contours.len());
-				for i in 0..contours.len() {
-					let contourval = &contours[i];
-					if contourval.is_array() {
-						let contour = contourval.as_array().unwrap();
-						println!("countour {} numpoints {}",i,contour.len());
-						let mut vc:Vec<Vec<f32>> = Vec::new();
-						for j in 0..contour.len() {
-							let points = contour[j].as_array().unwrap();
-						 let mut vp: Vec<f32> = Vec::new();
- 						for k in 0..points.len() {
-								let val = points[k].to_string();
-								vp.push(val.parse::<f32>().unwrap());
-								//print!(" {}",points[k]);
-							} //print!(",");
-							vc.push(vp);
-						}
-						v.push(vc);
-						//println!();
-					}
-				}
-			}
-		},
-	};
-/* for i in 0..v.len() {
+    let mut v: Vec<Vec<Vec<f32>>> = Vec::new();
+    match serde_json::from_str::<serde_json::Value>(&rawdata) {
+        Err(e) => println!("error deserializing, {}", e),
+        Ok(jsondata) => {
+            if jsondata.is_array() {
+                let contours = jsondata.as_array().unwrap();
+                println!("deserialize ok, {} contours", contours.len());
+                for i in 0..contours.len() {
+                    let contourval = &contours[i];
+                    if contourval.is_array() {
+                        let contour = contourval.as_array().unwrap();
+                        println!("countour {} numpoints {}", i, contour.len());
+                        let mut vc: Vec<Vec<f32>> = Vec::new();
+                        for j in 0..contour.len() {
+                            let points = contour[j].as_array().unwrap();
+                            let mut vp: Vec<f32> = Vec::new();
+                            for k in 0..points.len() {
+                                let val = points[k].to_string();
+                                vp.push(val.parse::<f32>().unwrap());
+                                //print!(" {}",points[k]);
+                            } //print!(",");
+                            vc.push(vp);
+                        }
+                        v.push(vc);
+                        //println!();
+                    }
+                }
+            }
+        }
+    };
+    /* for i in 0..v.len() {
 		for j in 0..v[i].len() {
 			for k in 0..v[i][j].len() {
 				print!("{},",v[i][j][k]);
@@ -79,52 +77,77 @@ fn parse_json(rawdata: &str) -> Option<Vec<Vec<Vec<f32>>>> {
 		}
 	}
 */
-	return Some(v);
+    return Some(v);
 }
 
-fn mkoutput( filename:&str, tris:&Vec<usize>, data:&Vec<Vec<Vec<f32>>>) {
-	println!("save data + triangles: {}, num tris:{}",&filename,tris.len());
+fn mkoutput(filename: &str, tris: &Vec<usize>, data: &Vec<Vec<Vec<f32>>>, pass: bool, rpt:&str ) {
+    println!(
+        "save data + triangles: {}, num tris:{}, rpt: {},",
+        &filename,
+        tris.len(),rpt
+    );
     // this filename + variablename also in integration_test.rs and viz.html
-	let outfile = "viz/testoutput.js";
-	let f = OpenOptions::new().create(true).append(true).open(outfile).unwrap();
-	writeln!(&f,r###"testOutput["{}.json"]={:?};"###,filename,data);
-	writeln!(&f,r###"testOutput["{}.json.triangles"]={:?};"###,filename,tris);
-	println!("wrote results to {}",outfile);
+    let outfile = "viz/testoutput.js";
+    let f = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(outfile)
+        .unwrap();
+    writeln!(&f, r###"testOutput["{}.json"]={:?};"###, filename, data);
+    writeln!(
+        &f,
+        r###"testOutput["{}.json.triangles"]={:?};"###,
+        filename, tris
+    );
+    writeln!(&f, r###"testOutput["{}.pass"]={:?};"###, filename,pass);
+    writeln!(&f, r###"testOutput["{}.report"]={:?};"###, filename,rpt);
+    println!("wrote results to {}", outfile);
 }
 
-fn area_test(filename:&str, expected_triangles:u32, expected_deviation:f32) {
-	let visualize = std::env::args().any(|x| x=="--test-threads=1");
-	println!("visualization: {}",visualize);
-	let mut deviation = expected_deviation;
-	if deviation == 0.0 {
-		deviation = 1e-14;
-	}
-	let fullname = format!("tests/fixtures/{}.json",filename);
-	match File::open(&fullname) {
-		Err(why) => panic!("failed to open file '{}': {}", fullname, why),
-		Ok(mut f) => {
-			print!("testing {},",fullname);
-			let mut strdata = String::new();
-			match f.read_to_string( &mut strdata ) {
-				Err(why) => println!("failed to read {}, {}",fullname,why),
-				Ok(numb) => {
-					println!("read {} bytes",numb);
-					let rawstring = strdata.trim();
-					match parse_json( rawstring ) {
-						None => println!("failed to parse {}",fullname),
-						Some(xdata) => {
-							let (data, holeidxs, dimensions) = earcutr::flatten( &xdata );
-							let triangles = earcutr::earcut( &data, &holeidxs, dimensions );
-							if visualize {mkoutput( &filename, &triangles, &xdata );}
-							//let deviation = earcutr::deviation( data, holeidxs, dimensions, indices );)
-						},
-					};
-				},
-			};
-		},
-	};
-	assert_eq!( deviation, deviation );
-	assert_eq!( expected_triangles, expected_triangles );
+fn area_test(filename: &str, expected_num_tris: usize, expected_deviation: f32) {
+    let visualize = std::env::args().any(|x| x == "--test-threads=1");
+    println!("visualization: {}", visualize);
+	let mut actual_num_tris = 0;
+	let mut actual_deviation = 0.0;
+    let mut edeviation = expected_deviation;
+	let mut triangles:Vec<usize> = Vec::new();
+	let mut xdata:Vec<Vec<Vec<f32>>> = Vec::new();
+    if edeviation == 0.0 {
+        edeviation = 1e-14;
+    }
+    let fullname = format!("tests/fixtures/{}.json", filename);
+    match File::open(&fullname) {
+        Err(why) => panic!("failed to open file '{}': {}", fullname, why),
+        Ok(mut f) => {
+            print!("testing {},", fullname);
+            let mut strdata = String::new();
+            match f.read_to_string(&mut strdata) {
+                Err(why) => println!("failed to read {}, {}", fullname, why),
+                Ok(numb) => {
+                    println!("read {} bytes", numb);
+                    let rawstring = strdata.trim();
+                    match parse_json(rawstring) {
+                        None => println!("failed to parse {}", fullname),
+                        Some(parsed_data) => {
+							xdata = parsed_data;
+                            let (data, holeidxs, dimensions) = earcutr::flatten(&xdata);
+                            triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+							actual_num_tris = triangles.len()/3;
+                            //actual_deviation = earcutr::deviation( data, holeidxs, dimensions, indices );)
+                        }
+                    };
+                }
+            };
+        }
+    };
+	let mut pass = true;
+    if expected_num_tris>0 && (expected_num_tris !=  actual_num_tris) { pass = false; };
+	//if edeviation != actual_deviation { pass = false; };
+    if visualize {
+		let rpt = format!("{} {} {} {}",expected_num_tris,edeviation, actual_num_tris, actual_deviation);
+        mkoutput(&filename, &triangles, &xdata, pass, &rpt);
+    }
+	assert_eq!( pass, true );
 }
 
 /*
