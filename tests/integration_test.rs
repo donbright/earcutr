@@ -8,16 +8,16 @@ extern crate serde_derive;
 use std::fs::File;
 //use std::io::prelude::*;
 use std::fs::OpenOptions;
-use std::io::prelude::*;
+//use std::io::prelude::*;
 use std::io::Read;
 use std::io::Write;
 //use serde_json::Error;
 
-fn format_percent(num: f32) -> String {
-    return num.to_string();
+//fn format_percent(num: f32) -> String {
+//    return num.to_string();
     //String::from("1.234");
     //    return ((1e8 * num).round() / 1e6).to_string();// + "%";
-}
+//}
 
 /*
 test("indices-2d", function (t) {
@@ -108,7 +108,7 @@ fn area_test(filename: &str, expected_num_tris: usize, expected_deviation: f32) 
     let visualize = std::env::args().any(|x| x == "--test-threads=1");
     println!("visualization: {}", visualize);
 	let mut actual_num_tris = 0;
-	let mut actual_deviation = 0.0;
+	let actual_deviation = 0.0;
     let mut edeviation = expected_deviation;
 	let mut triangles:Vec<usize> = Vec::new();
 	let mut xdata:Vec<Vec<Vec<f32>>> = Vec::new();
