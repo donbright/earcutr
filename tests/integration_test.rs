@@ -45,12 +45,12 @@ fn parse_json(rawdata: &str) -> Option<Vec<Vec<Vec<f32>>>> {
         Ok(jsondata) => {
             if jsondata.is_array() {
                 let contours = jsondata.as_array().unwrap();
-                println!("deserialize ok, {} contours", contours.len());
+                //println!("deserialize ok, {} contours", contours.len());
                 for i in 0..contours.len() {
                     let contourval = &contours[i];
                     if contourval.is_array() {
                         let contour = contourval.as_array().unwrap();
-                        println!("countour {} numpoints {}", i, contour.len());
+                        //println!("countour {} numpoints {}", i, contour.len());
                         let mut vc: Vec<Vec<f32>> = Vec::new();
                         for j in 0..contour.len() {
                             let points = contour[j].as_array().unwrap();
@@ -93,14 +93,15 @@ fn mkoutput(filename: &str, tris: &Vec<usize>, data: &Vec<Vec<Vec<f32>>>, pass: 
         .append(true)
         .open(outfile)
         .unwrap();
-    writeln!(&f, r###"testOutput["{}.json"]={:?};"###, filename, data);
+    writeln!(&f, r###"testOutput["{}"]=[];"###,filename);
+    writeln!(&f, r###"testOutput["{}"]["json"]={:?};"###, filename, data);
     writeln!(
         &f,
-        r###"testOutput["{}.json.triangles"]={:?};"###,
+        r###"testOutput["{}"]["triangles"]={:?};"###,
         filename, tris
     );
-    writeln!(&f, r###"testOutput["{}.pass"]={:?};"###, filename,pass);
-    writeln!(&f, r###"testOutput["{}.report"]={:?};"###, filename,rpt);
+    writeln!(&f, r###"testOutput["{}"]["pass"]={:?};"###, filename,pass);
+    writeln!(&f, r###"testOutput["{}"]["report"]={:?};"###, filename,rpt);
     println!("wrote results to {}", outfile);
 }
 
