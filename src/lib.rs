@@ -745,6 +745,7 @@ pub fn earcut(data: &Vec<f32>, hole_indices: &Vec<usize>, ndim: usize) -> Vec<us
     let (mut maxx, mut maxy, mut x, mut y);
 
     if has_holes {
+		println!("has holes {} {:?} {} {}",has_holes,hole_indices,outer_node,ll.dump());
         outer_node = eliminate_holes(&mut ll, data, hole_indices, outer_node, dim);
     }
 
@@ -1297,8 +1298,9 @@ fn signed_area(data: &Vec<f32>, start: usize, end: usize, dim: usize) -> f32 {
 
 pub fn flatten(data: &Vec<Vec<Vec<f32>>>) -> (Vec<f32>, Vec<usize>, usize) {
     let mut coordinates: Vec<f32> = Vec::new();
-    let mut hole_indexes: Vec<usize> = Vec::new();
+    let mut hole_indices: Vec<usize> = Vec::new();
     let dimensions = data[0][0].len();
+	let mut hole_index = 0;
     for i in 0..data.len() {
         for j in 0..data[i].len() {
             for d in 0..data[i][j].len() {
@@ -1307,10 +1309,11 @@ pub fn flatten(data: &Vec<Vec<Vec<f32>>>) -> (Vec<f32>, Vec<usize>, usize) {
             }
         }
         if i > 0 {
-            hole_indexes.push(data[i - 1].len());
+			hole_index += data[i-1].len();
+            hole_indices.push( hole_index );
         }
     }
-    return (coordinates, hole_indexes, dimensions);
+    return (coordinates, hole_indices, dimensions);
 }
 
 #[cfg(test)]
@@ -1789,8 +1792,8 @@ mod tests {
         let mut ll = linked_list(&body, 0, body.len(), dims, true);
         let hole1 = vec![0.1, 0.1, 0.9, 0.1, 0.9, 0.9, 0.1, 0.9];
         let hole2 = vec![0.2, 0.2, 0.8, 0.2, 0.8, 0.8, 0.2, 0.8];
-        hole_indices.push(body.len() / 2);
-        hole_indices.push((body.len() + hole1.len()) / 2);
+        hole_indices.push(body.len() / dims);
+        hole_indices.push((body.len() + hole1.len()) / dims);
         body.extend(hole1);
         body.extend(hole2);
 
@@ -1872,4 +1875,19 @@ mod tests {
 		println!("{:?} {}",triangles, triangles.len());
 		assert!(ll.nodes.len()==12);
   }
+
+    #[test]
+    fn test_flatten() {
+		let data: Vec<Vec<Vec<f32>>> = vec![
+			vec![vec![0.0,0.0], vec![1.0,0.0], vec![1.0,1.0], vec![0.0,1.0]],
+			vec![vec![0.1,0.1], vec![0.9,0.1], vec![0.9,0.9], vec![0.1,0.9]],
+			vec![vec![0.2,0.2], vec![0.8,0.2], vec![0.8,0.8], vec![0.2,0.8]],
+		];
+		let (coords,hole_indices,dim) = flatten( &data );
+		assert!(coords.len()==24);
+		assert!(hole_indices.len()==2);
+		assert!(hole_indices[0]==4);
+		assert!(hole_indices[1]==8);
+		assert!(dim==2);
+	}
 }
