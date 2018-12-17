@@ -59,8 +59,6 @@ fn parse_json(rawdata: &str) -> Option<Vec<Vec<Vec<earcutr::Coordinate>>>> {
                                 let val = points[k].to_string();
 								let pval = val.parse::<earcutr::Coordinate>().unwrap();
                                 vp.push(pval);
-                                println!(" ra {}",points[k]);
-                                println!(" ed {:.20}",pval);
                             } //print!(",");
                             vc.push(vp);
                         }
@@ -111,7 +109,7 @@ fn area_test(filename: &str, expected_num_tris: usize, expected_deviation: earcu
     let visualize = std::env::args().any(|x| x == "--test-threads=1");
     println!("visualization: {}", visualize);
 	let mut actual_num_tris = 0;
-	let actual_deviation = 0.0;
+	let mut actual_deviation = 0.0;
     let mut edeviation = expected_deviation;
 	let mut triangles:Vec<usize> = Vec::new();
 	let mut xdata:Vec<Vec<Vec<earcutr::Coordinate>>> = Vec::new();
@@ -136,7 +134,7 @@ fn area_test(filename: &str, expected_num_tris: usize, expected_deviation: earcu
                             let (data, holeidxs, dimensions) = earcutr::flatten(&xdata);
                             triangles = earcutr::earcut(&data, &holeidxs, dimensions);
 							actual_num_tris = triangles.len()/3;
-                            //actual_deviation = earcutr::deviation( data, holeidxs, dimensions, indices );)
+                            actual_deviation = earcutr::deviation( &data, &holeidxs, dimensions, &triangles );
                         }
                     };
                 }
@@ -145,9 +143,9 @@ fn area_test(filename: &str, expected_num_tris: usize, expected_deviation: earcu
     };
 	let mut pass = true;
     if expected_num_tris>0 && (expected_num_tris !=  actual_num_tris) { pass = false; };
-	//if edeviation != actual_deviation { pass = false; };
+	if edeviation < actual_deviation { pass = false; };
     if visualize {
-		let rpt = format!("exp numtri:{} exp dev:{} act numtri:{} act dev:{}",
+		let rpt = format!("exp numtri:{}\nexp dev:{}\nact numtri:{}\nact dev:{}",
 			expected_num_tris,edeviation, actual_num_tris, actual_deviation);
         mkoutput(&filename, &triangles, &xdata, pass, &rpt);
     }

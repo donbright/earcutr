@@ -3,7 +3,7 @@
 #![allow(unused_macros)]
 
 static NULL: usize = 0x777A91CC;
-static DEBUG: usize = 12;
+static DEBUG: usize = 4;
 
 /*
 notes.
@@ -268,6 +268,7 @@ fn eliminate_holes(
     inouter_node: NodeIdx,
     dim: usize,
 ) -> NodeIdx {
+	dlog!(4,"fn eliminate_holes");
     let mut outer_node = inouter_node;
     let mut queue: Vec<Node> = Vec::new();
     let hlen = hole_indices.len();
@@ -328,7 +329,7 @@ fn earcut_linked(
 ) {
     dlog!(
         4,
-        "earcut_linked nodes:{} tris:{} dm:{} mx:{} my:{} invs:{} pas:{}",
+        "fn earcut_linked nodes:{} tris:{} dm:{} mx:{} my:{} invs:{} pas:{}",
         ll.nodes.len(),
         triangles.len(),
         dim,
@@ -403,7 +404,7 @@ fn earcut_linked(
 
 // interlink polygon nodes in z-order
 fn index_curve(ll: &mut LL, start: NodeIdx, minx: Coordinate, miny: Coordinate, invsize: Coordinate) {
-    dlog!(4, "index curve");
+    dlog!(4, "fn index curve");
     let mut p = start;
     loop {
         if node!(ll, p).z == NULL as u32 {
@@ -428,7 +429,7 @@ fn index_curve(ll: &mut LL, start: NodeIdx, minx: Coordinate, miny: Coordinate, 
 // Simon Tatham's linked list merge sort algorithm
 // http://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.html
 fn sort_linked(ll: &mut LL, inlist: NodeIdx) {
-    dlog!(4, "sort linked");
+    dlog!(4, "fn sort linked");
     let mut p;
     let mut q;
     let mut e;
@@ -494,10 +495,10 @@ fn sort_linked(ll: &mut LL, inlist: NodeIdx) {
 
 // check whether a polygon node forms a valid ear with adjacent nodes
 fn is_ear(ll: &LL, ear: usize) -> bool {
+    dlog!(9, "fn is ear, {}", ear);
     if ear > ll.nodes.len() {
         return false;
     }
-    dlog!(4, "is ear, {}", ear);
     let result = true;
     let a = &prev!(ll, ear);
     let b = &node!(ll, ear);
@@ -522,7 +523,7 @@ fn is_ear(ll: &LL, ear: usize) -> bool {
 }
 
 fn is_ear_hashed(ll: &mut LL, ear: usize, minx: Coordinate, miny: Coordinate, invsize: Coordinate) -> bool {
-    dlog!(4, "ear hash");
+    dlog!(4, "fn is_ear_hashed");
     let a = node!(ll, ear).prev_idx;
     let b = ear;
     let c = node!(ll, ear).next_idx;
@@ -676,7 +677,7 @@ fn is_ear_hashed(ll: &mut LL, ear: usize, minx: Coordinate, miny: Coordinate, in
 }
 
 fn filter_points(ll: &mut LL, start: NodeIdx, mut end: NodeIdx) -> NodeIdx {
-	dlog!(9,"filter_points eliminate colinear or duplicate points");
+	dlog!(4,"fn filter_points"); // eliminate colinear or duplicate points
     if start == NULL {
         return start;
     }
@@ -719,6 +720,7 @@ fn filter_points(ll: &mut LL, start: NodeIdx, mut end: NodeIdx) -> NodeIdx {
 // create a circular doubly linked list from polygon points in the
 // specified winding order
 fn linked_list(data: &Vec<Coordinate>, start: usize, end: usize, dim: usize, clockwise: bool) -> LL {
+	dlog!(4,"fn linked_list");
     let mut ll: LL = LL::new();
     linked_list_add_contour(&mut ll, data, start, end, dim, clockwise);
     ll
@@ -732,6 +734,7 @@ fn linked_list_add_contour(
     dim: usize,
     clockwise: bool,
 ) {
+	dlog!(4,"fn linked_list_add_contour");
     if start > data.len() || end > data.len() {
         return;
     }
@@ -805,7 +808,7 @@ fn maxf(a: Coordinate, b: Coordinate) -> Coordinate {
 }
 
 pub fn earcut(data: &Vec<Coordinate>, hole_indices: &Vec<usize>, ndim: usize) -> Vec<usize> {
-    dlog!(3, "earcut");
+    dlog!(3, "fn earcut");
     let mut dim = ndim;
     if dim == 0 {
         dim = 2
@@ -1010,9 +1013,10 @@ fn split_earcut(
 
 // find a bridge between vertices that connects hole with an outer ring and and link it
 fn eliminate_hole(ll: &mut LL, hole: NodeIdx, outer_node: NodeIdx) {
+	dlog!(4,"fn eliminate_hole {} {} {}",hole,outer_node,ll.dump());
     let test_node = find_hole_bridge(ll, &node!(ll, hole), outer_node);
     if test_node != NULL {
-        let b = split_polygon(ll, outer_node, hole);
+        let b = split_polygon(ll, test_node, hole);
         let bn = next!(ll, b).idx;
         filter_points(ll, b, bn);
     }
@@ -1020,6 +1024,7 @@ fn eliminate_hole(ll: &mut LL, hole: NodeIdx, outer_node: NodeIdx) {
 
 // David Eberly's algorithm for finding a bridge between hole and outer polygon
 fn find_hole_bridge(ll: &LL, hole: &Node, outer_node: NodeIdx) -> NodeIdx {
+	dlog!(4,"fn find_hole_bridge {} {} {}",hole.idx,outer_node,ll.dump());
     let mut p = outer_node;
     let hx = hole.x;
     let hy = hole.y;
@@ -1113,6 +1118,7 @@ fn find_hole_bridge(ll: &LL, hole: &Node, outer_node: NodeIdx) -> NodeIdx {
 
 // get the leftmost node in the list, given a starting node
 fn get_leftmost(ll: &LL, start: NodeIdx) -> NodeIdx {
+	dlog!(4,"fn get_leftmost");
     let mut p = start;
     let mut leftmost = start;
     while {
@@ -1325,6 +1331,7 @@ Return value.
 Return value is the new node, at point 7.
 */
 fn split_polygon(ll: &mut LL, a: NodeIdx, b: NodeIdx) -> NodeIdx {
+	dlog!(4,"fn split_polygon {} {} {}",a,b,ll.dump());
     let cidx = ll.nodes.len();
     let didx = cidx + 1;
     let mut c = Node::new(node!(ll, a).i, node!(ll, a).x, node!(ll, a).y, cidx);
@@ -1352,7 +1359,7 @@ fn split_polygon(ll: &mut LL, a: NodeIdx, b: NodeIdx) -> NodeIdx {
 
 // return a percentage difference between the polygon area and its
 // triangulation area; used to verify correctness of triangulation
-fn deviation(data: &Vec<Coordinate>, hole_indices: &Vec<usize>, dim: usize, triangles: Vec<usize>) -> Coordinate {
+pub fn deviation(data: &Vec<Coordinate>, hole_indices: &Vec<usize>, dim: usize, triangles: &Vec<usize>) -> Coordinate {
     let has_holes = hole_indices.len() > 0;
     let mut outer_len = data.len();
     if has_holes {
@@ -1364,13 +1371,13 @@ fn deviation(data: &Vec<Coordinate>, hole_indices: &Vec<usize>, dim: usize, tria
         let mut i = 0;
         let length = hole_indices.len();
         while i < length {
-            i += 1;
             let start = hole_indices[i] * dim;
             let mut end = data.len();
             if i < length - 1 {
                 end = hole_indices[i + 1] * dim;
             }
             polygon_area -= signed_area(&data, start, end, dim).abs();
+            i += 1;
         }
     }
 
@@ -1387,7 +1394,7 @@ fn deviation(data: &Vec<Coordinate>, hole_indices: &Vec<usize>, dim: usize, tria
     if polygon_area == 0.0 && triangles_area == 0.0 {
         return 0.0;
     } else {
-        return (triangles_area - polygon_area) / polygon_area;
+        return ((triangles_area - polygon_area) / polygon_area).abs();
     }
 }
 
@@ -1460,7 +1467,7 @@ mod tests {
         let data1 = vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.0];
         let tris = vec![0, 1, 2, 2, 3, 0];
         let hi: Vec<usize> = Vec::new();
-        assert!(deviation(&data1, &hi, 2, tris) == 0.0);
+        assert!(deviation(&data1, &hi, 2, &tris) == 0.0);
     }
 
     #[test]
