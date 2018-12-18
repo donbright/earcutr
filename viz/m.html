@@ -22,7 +22,7 @@ div.flist {
 	float: left;
 	position: relative;
 	width: 100%;
-	height: 80%;
+	height: 75%;
 	background-color: slategray;
 	overflow: scroll;
 }
@@ -44,6 +44,7 @@ div.file {
     justify-content: left;
 	padding-left: 5%;
 	overflow: visible;
+	cursor: default;
 
 	-webkit-user-select: none;
 	-khtml-user-select: none;
@@ -64,7 +65,74 @@ div.file:active {
 	margin-bottom: -1%;
 }
 
+div.controlpanel {
+	float: left;
+	position: relative;
+	width: 100%;
+	height: 10%;
+	background-color: slategray;
+	font-family: Helvetica, Arial, sans-serif;
+	font-size: 2em;
+//	padding: 5%;
+//	border: 1px solid black;
+}
 
+div.controlpanel {
+//	float: right;
+	position: relative;
+	width: 100%;
+	height: 5%;
+	background-color: slategray;
+	font-family: Helvetica, Arial, sans-serif;
+	font-size: 2em;
+	display: flex;
+//	padding: 5%;
+//	border: 1px solid black;
+}
+
+div.controlbutton {
+//	position: relative;
+	background-color: gray;
+	color: white;
+	font-family: Helvetica, Arial, sans-serif;
+	font-size: .8em;
+//	width: 20%;
+	height: 75%;
+	text-align: center;
+	margin-left: 3%;
+	margin-top: 2%;
+	margin-down: 2%;
+	margin-right: 0%;
+    box-shadow: 5px 10px 18px #000000;
+	z-index: 1;
+//    display:flex;
+display: inline-block;
+//    align-items: center;
+//    justify-content: left;
+	padding-left: 2%;
+	padding-right: 2%;
+	padding: 1%em;
+	overflow: visible;
+	cursor: default;
+
+	-webkit-user-select: none;
+	-khtml-user-select: none;
+	-moz-user-select: none;
+	-o-user-select: none;
+	user-select: none;
+}
+div.controlbutton:hover {
+	background-color: lightgray;
+	color: white;
+    box-shadow: 7px 14px 26px #000000;
+	overflow: visible;
+}
+div.controlbutton:active {
+	margin-right: -2%;
+	margin-left: 5%;
+	margin-top: 4%;
+	margin-bottom: -1%;
+}
 
 div.reportpanel {
 	float: left;
@@ -142,6 +210,14 @@ div.viewer {
 		<div class="flist" id="menu">
 			<!-- <div class="file">File1.txt</div> -->
 		</div>
+		<div class="controlpanel">
+			<div class="controlbutton" id="labelsbutton">
+				labels
+			</div>
+			<div class="controlbutton" id="trisbutton">
+				triangles
+			</div>
+		</div>
 		<div class="reportpanel">
 			<div class="report" id="report">
 				<!-- blah blah blah -->
@@ -161,6 +237,10 @@ div.viewer {
 <script src='earcut.js'></script>
 <script src='testoutput.js'></script> <!-- defines var testOutput=[]; -->
 <script>
+var currentTestName = "";
+var labelsToggle = false;
+var trisToggle = true;
+
 function setupCanvas(viewerid,canvasid) {
 	// size must be reset because CSS sizing doesn't work on canvases.
 	canvas = document.getElementById(canvasid);
@@ -273,7 +353,7 @@ function drawPset( pset, canvas, mapr, labels, lastcontour, fill ) {
 				ctx.fillText( i+','+j, mapr.x(point[0]), mapr.y(point[1])+20 );
 				ctx.fillText( i+','+j, mapr.x(point[0]), mapr.y(point[1])+20 );
 				ctx.fillStyle = fs;
-				console.log(i+','+j, mapr.x(point[0]), mapr.y(point[1]));
+				//console.log(i+','+j, mapr.x(point[0]), mapr.y(point[1]));
 			}
 		}
 		ctx.closePath();
@@ -284,13 +364,10 @@ function drawPset( pset, canvas, mapr, labels, lastcontour, fill ) {
 }
 
 // create a function to respond to filename clicks, used by build_testmenu
-function mkfunc( testname, canvas ) {
+function mkfunc( testname, canvasid ) {
     return function() {
-		canvas = document.getElementById( canvas.id );
-		drawTest( testOutput[testname]["json"], 
-				  testOutput[testname]["triangles"],
-				  testOutput[testname]["report"],
-				  canvas );
+		currentTestName = testname;
+		redraw( canvasid );
     }
 };
 
@@ -326,22 +403,44 @@ function build_testmenu( canvasid ) {
 	}
 }
 
-function drawTest( pset, tris, report, canvas ) {
+function drawTest( pset, tris, report, canvas, showlabels, showtris ) 
+{
 	ctx = canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
 	mapr = new PointMapper( pset, canvas );
 	triPset = makeTriPset( pset, tris, mapr ); 
-	showlabels = true;
 	drawPset( pset, canvas, mapr, showlabels, pset.length, false );
-//	for ( var i = 0; i < 6; i ++ ) { 
-		todraw = triPset.length;
-		drawPset( triPset, canvas, mapr, false, todraw, true );
-//	}
+	if ( showtris ) {
+	//	for ( var i = 0; i < 6; i ++ ) { 
+			todraw = triPset.length;
+			drawPset( triPset, canvas, mapr, false, todraw, true );
+	//	}
+	}
     var reportbox = document.getElementById("report");
 	reportbox.innerHTML = report + '<br/>' + tris;
 }
 
+function redraw( canvasid ) {
+	canvas = document.getElementById( "mycan" );
+	drawTest( testOutput[currentTestName]["json"], 
+			  testOutput[currentTestName]["triangles"],
+			  testOutput[currentTestName]["report"],
+			  canvas,
+			  labelsToggle,
+			  trisToggle );
+}
+function labelsfunc( canvasid ) { labelsToggle = !labelsToggle; redraw(canvasid); };
+function trisfunc( canvasid ) { trisToggle = !trisToggle; redraw(canvasid); };
+
+function setupControls( canvasid ) {
+    var labelsbutton = document.getElementById("labelsbutton");
+    labelsbutton.addEventListener('click', labelsfunc, canvasid );
+    var trisbutton = document.getElementById("trisbutton");
+    trisbutton.addEventListener('click', trisfunc, canvasid );
+}
+
 function main() {
 	canvas = setupCanvas("viewer","mycan");
+	setupControls( "mycan" );
 
 	var testPset = [[[661,112],[661,96],[666,96],[666,87],[743,87],[771,87],[771,114],[750,114],[750,113],[742,113],[742,106],[710,106],[710,113],[666,113],[666,112]]];
 	var testTris = [14, 0, 1, 2, 3, 4, 4, 5, 6, 6, 7, 8, 8, 9, 10, 11, 

@@ -3,7 +3,7 @@
 #![allow(unused_macros)]
 
 static NULL: usize = 0x777A91CC;
-static DEBUG: usize = 0;
+static DEBUG: usize = 10;
 
 /*
 notes.
@@ -1049,7 +1049,7 @@ fn find_hole_bridge(ll: &LL, hole: &Node, outer_node: NodeIdx) -> NodeIdx {
 
     loop {
         let (px, py) = (node!(ll, p).x, node!(ll, p).y);
-        dlog!(9,"find hole bridge m:{} p:{} px:{} py:{} hx:{} hy:{} qx:{}",m,p,px,py,hx,hy,qx);
+   //     dlog!(9,"find hole bridge loop m:{} p:{} px:{} py:{} hx:{} hy:{} qx:{}",m,p,px,py,hx,hy,qx);
         if hy <= py && hy >= next!(ll, p).y && next!(ll, p).y != py {
             //			dlog!(4,"fhb first inner");
             let x = px + (hy - py) * (next!(ll, p).x - px) / (next!(ll, p).y - py);
@@ -1072,6 +1072,7 @@ fn find_hole_bridge(ll: &LL, hole: &Node, outer_node: NodeIdx) -> NodeIdx {
                 };
             }
         }
+		dlog!(9,"find hole bridge loop 1 p,outernode {} {}",p,outer_node);
         p = next!(ll, p).idx;
         if p == outer_node {
             break;
@@ -1106,7 +1107,7 @@ fn find_hole_bridge(ll: &LL, hole: &Node, outer_node: NodeIdx) -> NodeIdx {
         let (px, py) = (node!(ll, p).x, node!(ll, p).y);
         let x1 = if hy < my { hx } else { qx };
         let x2 = if hy < my { qx } else { hx };
-        dlog!(9,"find hole bridge x1:{} x2:{} mx:{} my:{} m:{} p:{} px:{} py:{} hx:{} hy:{}",x1,x2,mx, my, m,p,px,py,hx,hy);
+//        dlog!(9,"find hole bridge x1:{} x2:{} mx:{} my:{} m:{} p:{} px:{} py:{} hx:{} hy:{}",x1,x2,mx, my, m,p,px,py,hx,hy);
         if hx >= px && px >= mx && hx != px && point_in_triangle(x1, hy, mx, my, x2, hy, px, py) {
             //			dlog!(4,"fhb loop 2 inner");
             tan = (hy - py).abs() / (hx - px); // tangential
@@ -1122,6 +1123,7 @@ fn find_hole_bridge(ll: &LL, hole: &Node, outer_node: NodeIdx) -> NodeIdx {
             }
         }
 
+		dlog!(9,"find hole bridge loop 2 p,stop {} {}",p,stop);
         p = next!(ll, p).idx;
     }
 

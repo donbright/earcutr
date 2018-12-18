@@ -3,7 +3,7 @@
 module.exports = earcut;
 module.exports.default = earcut;
 function earcut(data, holeIndices, dim) {
-	console.log("earcut "+data.length+","+holeIndices+","+dim);
+	//console.log("earcut "+data.length+","+holeIndices+","+dim);
     dim = dim || 2;
 
     var hasHoles = holeIndices && holeIndices.length,
@@ -43,7 +43,7 @@ function earcut(data, holeIndices, dim) {
 
 // create a circular doubly linked list from polygon points in the specified winding order
 function linkedList(data, start, end, dim, clockwise) {
-	console.log("llist"+data.length+","+start+","+end+","+dim+","+clockwise);
+	//console.log("llist"+data.length+","+start+","+end+","+dim+","+clockwise);
     var i, last;
 
     if (clockwise === (signedArea(data, start, end, dim) > 0)) {
@@ -64,7 +64,7 @@ function linkedList(data, start, end, dim, clockwise) {
 function filterPoints(start, end) {
     if (!start) return start;
     if (!end) end = start;
-	console.log("filterpoints points "+start.i+","+end.i);
+	//console.log("filterpoints points "+start.i+","+end.i);
 
     var p = start,
         again;
@@ -82,13 +82,13 @@ function filterPoints(start, end) {
         }
     } while (again || p !== end);
 
-	console.log("filter points end",end.i);
+	//console.log("filter points end",end.i);
     return end;
 }
 
 // main ear slicing loop which triangulates a polygon (given as a linked list)
 function earcutLinked(ear, triangles, dim, minX, minY, invSize, pass) {
-	console.log("earcutlinked ear.i:",ear.i,pass);
+	//console.log("earcutlinked ear.i:",ear.i,pass);
 //",",dim,minX,minY,invSize,pass);
     if (!ear) return;
 
@@ -163,7 +163,7 @@ function isEar(ear) {
 }
 
 function isEarHashed(ear, minX, minY, invSize) {
-	console.log("isearhashed"+ear+minX+minY+invSize);
+	//console.log("isearhashed"+ear+minX+minY+invSize);
     var a = ear.prev,
         b = ear,
         c = ear.next;
@@ -217,7 +217,7 @@ function isEarHashed(ear, minX, minY, invSize) {
 
 // go through all polygon nodes and cure small local self-intersections
 function cureLocalIntersections(start, triangles, dim) {
-	console.log("cure local intersections i"+start.i+","+triangles+","+dim);
+	//console.log("cure local intersections i"+start.i+","+triangles+","+dim);
     var p = start;
     do {
         var a = p.prev,
@@ -243,18 +243,18 @@ function cureLocalIntersections(start, triangles, dim) {
 
 // try splitting polygon into two and triangulate them independently
 function splitEarcut(start, triangles, dim, minX, minY, invSize) {
-	console.log("split ear cut i:"+start.i);
+	//console.log("split ear cut i:"+start.i);
     // look for a valid diagonal that divides the polygon into two
     var a = start;
     do {
         var b = a.next.next;
-		console.log("splitear loop is:",a.i,",",b.i);
+		//console.log("splitear loop is:",a.i,",",b.i);
         while (b !== a.prev) {
-			console.log("splitear mloop",a.i,b.i,isValidDiagonal(a,b));
+			//console.log("splitear mloop",a.i,b.i,isValidDiagonal(a,b));
             if (a.i !== b.i && isValidDiagonal(a, b)) {
                 // split the polygon in two by the diagonal
                 var c = splitPolygon(a, b);
-				console.log("splitear inn loop ai bi ci",a.i,b.i,c.i);
+				//console.log("splitear inn loop ai bi ci",a.i,b.i,c.i);
 
                 // filter colinear points around the cuts
                 a = filterPoints(a, a.next);
@@ -273,7 +273,7 @@ function splitEarcut(start, triangles, dim, minX, minY, invSize) {
 
 // link every hole into the outer loop, producing a single-ring polygon without holes
 function eliminateHoles(data, holeIndices, outerNode, dim) {
-	console.log("eliminateHoles",data,holeIndices,outerNode,dim);
+	//console.log("eliminateHoles",data,holeIndices,outerNode,dim);
     var queue = [],
         i, len, start, end, list;
 
@@ -289,7 +289,7 @@ function eliminateHoles(data, holeIndices, outerNode, dim) {
 
     // process holes from left to right
     for (i = 0; i < queue.length; i++) {
-		console.log("eliminating hole "+i+" of "+queue.length);
+		//console.log("eliminating hole "+i+" of "+queue.length);
         eliminateHole(queue[i], outerNode);
         outerNode = filterPoints(outerNode, outerNode.next);
     }
@@ -373,7 +373,7 @@ function findHoleBridge(hole, outerNode) {
 
 // interlink polygon nodes in z-order
 function indexCurve(start, minX, minY, invSize) {
-	console.log("indexcurve",start,minX,minY,invSize);
+	//console.log("indexcurve",start,minX,minY,invSize);
     var p = start;
     do {
         if (p.z === null) p.z = zOrder(p.x, p.y, minX, minY, invSize);
@@ -391,7 +391,7 @@ function indexCurve(start, minX, minY, invSize) {
 // Simon Tatham"s linked list merge sort algorithm
 // http://www.chiark.greenend.org.uk/~sgtatham/algorithms/listsort.html
 function sortLinked(list) {
-	console.log("sortlinked",list);
+	//console.log("sortlinked",list);
     var i, p, q, e, tail, numMerges, pSize, qSize,
         inSize = 1;
 
@@ -464,7 +464,7 @@ function zOrder(x, y, minX, minY, invSize) {
 
 // find the leftmost node of a polygon ring
 function getLeftmost(start) {
-	console.log("getleftmost",start);
+	//console.log("getleftmost",start);
     var p = start,
         leftmost = start;
     do {
@@ -485,10 +485,10 @@ function pointInTriangle(ax, ay, bx, by, cx, cy, px, py) {
 
 // check if a diagonal between two polygon nodes is valid (lies in polygon interior)
 function isValidDiagonal(a, b) {
-    	console.log("is-val-dia !ip ", !intersectsPolygon( a, b));
-        console.log("is-val-dia li ", locallyInside( a, b));
-        console.log("is-val-dia li ", locallyInside( b, a));
-        console.log("is-val-dia mi ", middleInside( a, b));
+    	//console.log("is-val-dia !ip ", !intersectsPolygon( a, b));
+        //console.log("is-val-dia li ", locallyInside( a, b));
+        //console.log("is-val-dia li ", locallyInside( b, a));
+        //console.log("is-val-dia mi ", middleInside( a, b));
 
     return a.next.i !== b.i 
            && a.prev.i !== b.i 
@@ -520,11 +520,10 @@ function intersects(p1, q1, p2, q2) {
 
 // check if a polygon diagonal intersects any polygon segments
 function intersectsPolygon(a, b) {
-	console.log("intersectsPolygon",a,b);
+	//console.log("intersectsPolygon",a,b);
     var p = a;
     do {
-		console.log("intersectsPolygon isect?",p.i,p.next.i,a.i,b.i,
-              intersects(p, p.next, a, b) );
+		//console.log("intersectsPolygon isect?",p.i,p.next.i,a.i,b.i, intersects(p, p.next, a, b) );
         if (p.i !== a.i && p.next.i !== a.i && p.i !== b.i && p.next.i !== b.i &&
                 intersects(p, p.next, a, b)) {
 			return true;
@@ -603,7 +602,7 @@ function insertNode(i, x, y, last) {
 }
 
 function removeNode(p) {
-	console.log("removeNode",p);
+	//console.log("removeNode",p);
     p.next.prev = p.prev;
     p.prev.next = p.next;
 
