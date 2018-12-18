@@ -158,8 +158,8 @@ div.viewer {
 </div>
 
 <script>module = {}</script>
-<script src='testoutput.js'></script> <!-- must be above other code -->
 <script src='earcut.js'></script>
+<script src='testoutput.js'></script> <!-- defines var testOutput=[]; -->
 <script>
 function setupCanvas(viewerid,canvasid) {
 	// size must be reset because CSS sizing doesn't work on canvases.
@@ -260,7 +260,8 @@ function drawPset( pset, canvas, mapr, labels, lastcontour, fill ) {
 		var contour = pset[i];
 		ctx.beginPath();
 		ctx.moveTo( mapr.x(contour[0][0]), mapr.y(contour[0][1]) );
-		var fs = 'hsla('+360*(i*3)/(pset.length*3-1)+',100%,50%,0.05)';
+		//var fs = 'hsla('+360*(i*3)/(pset.length*3-1)+',100%,50%,0.05)';
+		var fs = 'hsla('+360*(i*3)/(pset.length*3-1)+',100%,50%,0.2)';
 		ctx.fillStyle = fs;
 		//console.log('fs',i*3,pset.length*3-1,fs );
 		for ( var j=0; j < contour.length; j++ ) {
@@ -304,11 +305,12 @@ function build_testmenu( canvasid ) {
 		console.log("-------earcut start"+data);
 		var result = earcut(data.vertices, data.holes, data.dimensions);
 		console.log("-------earcut end");
+		var rpttxt = "filename:" + testname + ".json\n num tris" + result.length/3;
 		testOutput[testname+"_ecut"] = [];
 		testOutput[testname+"_ecut"]["json"] = testOutput[testname]["json"];
 		testOutput[testname+"_ecut"]["triangles"] = result;
 		testOutput[testname+"_ecut"]["pass"] = "0";
-		testOutput[testname+"_ecut"]["report"] = "num tris" + result.length/3;
+		testOutput[testname+"_ecut"]["report"] = rpttxt;
 	}
 	names = Object.keys(testOutput);
 	names.sort();
@@ -328,7 +330,8 @@ function drawTest( pset, tris, report, canvas ) {
 	ctx = canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
 	mapr = new PointMapper( pset, canvas );
 	triPset = makeTriPset( pset, tris, mapr ); 
-	drawPset( pset, canvas, mapr, true, pset.length, false );
+	showlabels = true;
+	drawPset( pset, canvas, mapr, showlabels, pset.length, false );
 //	for ( var i = 0; i < 6; i ++ ) { 
 		todraw = triPset.length;
 		drawPset( triPset, canvas, mapr, false, todraw, true );

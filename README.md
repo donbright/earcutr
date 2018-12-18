@@ -5,7 +5,7 @@ WARNING - in progress, doesnt work yet
 Polygon triangulation library, translated into Rust computer language from
 the original Earcut project from MapBox. https://github.com/mapbox/earcut
 
-![image showing an outline of a building, with triangles inside of it](viz/building.png "Building, earcut")
+![image showing an outline of a building, with triangles inside of it](viz/circle.png "circle, earcut")
 
 #### Usage
 

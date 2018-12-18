@@ -13,7 +13,7 @@ use std::io::Read;
 use std::io::Write;
 //use serde_json::Error;
 
-//fn format_percent(num: earcutr::Coordinate) -> String {
+//fn format_percent(num: f64) -> String {
 //    return num.to_string();
     //String::from("1.234");
     //    return ((1e8 * num).round() / 1e6).to_string();// + "%";
@@ -38,8 +38,8 @@ test("empty", function (t) {
 });
 */
 
-fn parse_json(rawdata: &str) -> Option<Vec<Vec<Vec<earcutr::Coordinate>>>> {
-    let mut v: Vec<Vec<Vec<earcutr::Coordinate>>> = Vec::new();
+fn parse_json(rawdata: &str) -> Option<Vec<Vec<Vec<f64>>>> {
+    let mut v: Vec<Vec<Vec<f64>>> = Vec::new();
     match serde_json::from_str::<serde_json::Value>(&rawdata) {
         Err(e) => println!("error deserializing, {}", e),
         Ok(jsondata) => {
@@ -51,13 +51,13 @@ fn parse_json(rawdata: &str) -> Option<Vec<Vec<Vec<earcutr::Coordinate>>>> {
                     if contourval.is_array() {
                         let contour = contourval.as_array().unwrap();
                         //println!("countour {} numpoints {}", i, contour.len());
-                        let mut vc: Vec<Vec<earcutr::Coordinate>> = Vec::new();
+                        let mut vc: Vec<Vec<f64>> = Vec::new();
                         for j in 0..contour.len() {
                             let points = contour[j].as_array().unwrap();
-                            let mut vp: Vec<earcutr::Coordinate> = Vec::new();
+                            let mut vp: Vec<f64> = Vec::new();
                             for k in 0..points.len() {
                                 let val = points[k].to_string();
-								let pval = val.parse::<earcutr::Coordinate>().unwrap();
+								let pval = val.parse::<f64>().unwrap();
                                 vp.push(pval);
                             } //print!(",");
                             vc.push(vp);
@@ -80,7 +80,7 @@ fn parse_json(rawdata: &str) -> Option<Vec<Vec<Vec<earcutr::Coordinate>>>> {
     return Some(v);
 }
 
-fn mkoutput(filename: &str, tris: &Vec<usize>, data: &Vec<Vec<Vec<earcutr::Coordinate>>>, pass: bool, rpt:&str ) {
+fn mkoutput(filename: &str, tris: &Vec<usize>, data: &Vec<Vec<Vec<f64>>>, pass: bool, rpt:&str ) {
     println!(
         "save data + triangles: {}, num tri pts:{}, rpt: {},",
         &filename,
@@ -105,14 +105,14 @@ fn mkoutput(filename: &str, tris: &Vec<usize>, data: &Vec<Vec<Vec<earcutr::Coord
     println!("wrote results to {}", outfile);
 }
 
-fn area_test(filename: &str, expected_num_tris: usize, expected_deviation: earcutr::Coordinate) {
+fn area_test(filename: &str, expected_num_tris: usize, expected_deviation: f64) {
     let visualize = std::env::args().any(|x| x == "--test-threads=1");
     println!("visualization: {}", visualize);
 	let mut actual_num_tris = 0;
 	let mut actual_deviation = 0.0;
     let mut edeviation = expected_deviation;
 	let mut triangles:Vec<usize> = Vec::new();
-	let mut xdata:Vec<Vec<Vec<earcutr::Coordinate>>> = Vec::new();
+	let mut xdata:Vec<Vec<Vec<f64>>> = Vec::new();
     if edeviation == 0.0 {
         edeviation = 1e-14;
     }
