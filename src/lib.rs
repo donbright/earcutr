@@ -3,7 +3,7 @@
 #![allow(unused_macros)]
 
 static NULL: usize = 0x777A91CC;
-static DEBUG: usize = 10;
+static DEBUG: usize = 1;
 
 /*
 notes.
@@ -1041,7 +1041,7 @@ fn find_hole_bridge(ll: &LL, hole: &Node, outer_node: NodeIdx) -> NodeIdx {
     let hx = hole.x;
     let hy = hole.y;
     let mut qx: f64 = min_coord_value();
-    let mut m: NodeIdx = 0;
+    let mut m: NodeIdx = NULL;
 
     // find a segment intersected by a ray from the hole's leftmost
     // point to the left; segment's endpoint with lesser x will be
