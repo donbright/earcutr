@@ -2,16 +2,19 @@ extern crate earcutr;
 
 extern crate serde;
 extern crate serde_json;
-//#[macro_use]
 extern crate serde_derive;
 
 use std::fs::File;
-//use std::io::prelude::*;
 use std::fs::OpenOptions;
-//use std::io::prelude::*;
 use std::io::Read;
 use std::io::Write;
-//use serde_json::Error;
+
+static DEBUG: usize = 1;
+macro_rules! dlog {
+    ($loglevel:expr, $($s:expr),*) => (
+        if DEBUG>=$loglevel { print!("{}:",$loglevel); println!($($s),+); }
+    )
+}
 
 //fn format_percent(num: f64) -> String {
 //    return num.to_string();
@@ -45,12 +48,12 @@ fn parse_json(rawdata: &str) -> Option<Vec<Vec<Vec<f64>>>> {
         Ok(jsondata) => {
             if jsondata.is_array() {
                 let contours = jsondata.as_array().unwrap();
-                //println!("deserialize ok, {} contours", contours.len());
+                dlog!(4,"deserialize ok, {} contours", contours.len());
                 for i in 0..contours.len() {
                     let contourval = &contours[i];
                     if contourval.is_array() {
                         let contour = contourval.as_array().unwrap();
-                        //println!("countour {} numpoints {}", i, contour.len());
+                        dlog!(9,"countour {} numpoints {}", i, contour.len());
                         let mut vc: Vec<Vec<f64>> = Vec::new();
                         for j in 0..contour.len() {
                             let points = contour[j].as_array().unwrap();
@@ -59,29 +62,20 @@ fn parse_json(rawdata: &str) -> Option<Vec<Vec<Vec<f64>>>> {
                                 let val = points[k].to_string();
 								let pval = val.parse::<f64>().unwrap();
                                 vp.push(pval);
-                            } //print!(",");
+                            }
                             vc.push(vp);
                         }
                         v.push(vc);
-                        //println!();
                     }
                 }
             }
         }
     };
-    /* for i in 0..v.len() {
-		for j in 0..v[i].len() {
-			for k in 0..v[i][j].len() {
-				print!("{},",v[i][j][k]);
-			}
-		}
-	}
-*/
     return Some(v);
 }
 
 fn mkoutput(filename: &str, tris: &Vec<usize>, data: &Vec<Vec<Vec<f64>>>, pass: bool, rpt:&str ) {
-    println!(
+    dlog!(4,
         "save data + triangles: {}, num tri pts:{}, rpt: {},",
         &filename,
         tris.len(),rpt
@@ -102,12 +96,14 @@ fn mkoutput(filename: &str, tris: &Vec<usize>, data: &Vec<Vec<Vec<f64>>>, pass: 
     );
     writeln!(&f, r###"testOutput["{}"]["pass"]={:?};"###, filename,pass);
     writeln!(&f, r###"testOutput["{}"]["report"]={:?};"###, filename,rpt);
-    println!("wrote results to {}", outfile);
+    dlog!(4,"wrote results to {}", outfile);
 }
 
-fn area_test(filename: &str, expected_num_tris: usize, expected_deviation: f64) {
+// this is called by test.rs, which is generated at compile time by 
+// build.rs running at the first stage of 'cargo test'.
+fn area_test(filename: &str, expected_num_tris: usize, expected_deviation: f64) -> Result<(), String> {
     let visualize = std::env::args().any(|x| x == "--test-threads=1");
-    println!("visualization: {}", visualize);
+    dlog!(4,"visualization: {}", visualize);
 	let mut actual_num_tris = 0;
 	let mut actual_deviation = 0.0;
     let mut edeviation = expected_deviation;
@@ -120,15 +116,15 @@ fn area_test(filename: &str, expected_num_tris: usize, expected_deviation: f64) 
     match File::open(&fullname) {
         Err(why) => panic!("failed to open file '{}': {}", fullname, why),
         Ok(mut f) => {
-            print!("testing {},", fullname);
+            dlog!(4,"testing {},", fullname);
             let mut strdata = String::new();
             match f.read_to_string(&mut strdata) {
-                Err(why) => println!("failed to read {}, {}", fullname, why),
+                Err(why) => dlog!(4,"failed to read {}, {}", fullname, why),
                 Ok(numb) => {
-                    println!("read {} bytes", numb);
+                    dlog!(4,"read {} bytes", numb);
                     let rawstring = strdata.trim();
                     match parse_json(rawstring) {
-                        None => println!("failed to parse {}", fullname),
+                        None => dlog!(4,"failed to parse {}", fullname),
                         Some(parsed_data) => {
 							xdata = parsed_data;
                             let (data, holeidxs, dimensions) = earcutr::flatten(&xdata);
@@ -144,12 +140,13 @@ fn area_test(filename: &str, expected_num_tris: usize, expected_deviation: f64) 
 	let mut pass = true;
     if expected_num_tris>0 && (expected_num_tris !=  actual_num_tris) { pass = false; };
 	if edeviation < actual_deviation { pass = false; };
+	let rpt = format!("exp numtri:{}\nexp dev:{}\nact numtri:{}\nact dev:{}",
+		expected_num_tris,edeviation, actual_num_tris, actual_deviation);
     if visualize {
-		let rpt = format!("exp numtri:{}\nexp dev:{}\nact numtri:{}\nact dev:{}",
-			expected_num_tris,edeviation, actual_num_tris, actual_deviation);
         mkoutput(&filename, &triangles, &xdata, pass, &rpt);
     }
-	assert_eq!( pass, true );
+	if pass { return Ok(()); }
+	return Err(String::from( format!("{} {}",filename,rpt) ));
 }
 
 /*
@@ -177,7 +174,7 @@ fs.readFileSync(path.join(__dirname, "/fixtures/" + filename + ".json")
 }
 */
 
-// #[test] lines are generated by 'build.rs' at compile time
+// #[test] lines and functions  are generated by 'build.rs' at compile time
 // they are dumped into a file called test.rs under the build dir,included below
 // each test calls area_test( filename, expected_tris, expected_area )
 include!(concat!(env!("OUT_DIR"), "/test.rs"));
