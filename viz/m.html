@@ -2,6 +2,9 @@
 <head>
 <meta charset="utf-8" /> 
 <style>
+body {
+    font-size: 100%;
+}
 div.main {
 	position:fixed;
 	top:0px;
@@ -31,7 +34,7 @@ div.flist {
 	position: relative;
 	color: white;
 	font-family: Helvetica, Arial, sans-serif;
-	font-size: 2em;
+	font-size: 1em;
 	height: 5%;
 	text-align: left;
 	margin: 3%;
@@ -85,7 +88,7 @@ div.controlpanel {
 	height: 10%;
 	background-color: slategray;
 	font-family: Helvetica, Arial, sans-serif;
-	font-size: 2em;
+	font-size: 1em;
 //	padding: 5%;
 //	border: 1px solid black;
 }
@@ -97,7 +100,7 @@ div.controlpanel {
 	height: 5%;
 	background-color: slategray;
 	font-family: Helvetica, Arial, sans-serif;
-	font-size: 2em;
+	font-size: 1em;
 	display: flex;
 //	padding: 5%;
 //	border: 1px solid black;
@@ -108,7 +111,7 @@ div.controlbutton {
 	background-color: gray;
 	color: white;
 	font-family: Helvetica, Arial, sans-serif;
-	font-size: .8em;
+	font-size: 1em;
 //	width: 20%;
 	height: 75%;
 	text-align: center;
@@ -154,7 +157,7 @@ div.reportpanel {
 	height: 20%;
 	background-color: slategray;
 	font-family: Helvetica, Arial, sans-serif;
-	font-size: 2em;
+	font-size: 1em;
 //	padding: 5%;
 //	border: 1px solid black;
 }
@@ -249,7 +252,7 @@ div.viewer {
 <script>
 var currentTestName = "";
 var labelsToggle = 0;
-var trisToggle = true;
+var fillToggle = 1;
 var labelmap = [];
 
 function setupCanvas(viewerid,canvasid) {
@@ -262,6 +265,16 @@ function setupCanvas(viewerid,canvasid) {
 	var ht = par.clientHeight - hextra;
 	canvas.setAttribute('height',ht+"px");
 	canvas.setAttribute('width',wdt+"px");
+
+	canvas.addEventListener("wheel", function (ev) {
+		console.log("wheel");
+		console.log(ev.deltaX);
+		console.log(ev.deltaY);
+		console.log(ev.offsetX);
+		console.log(ev.offsetY);
+		redraw( canvas.id );
+	} );
+
 	return canvas;
 }
 
@@ -363,7 +376,7 @@ function makeTriPset( mainPset, tris, mapr ) {
 	return trianglePset;
 }
 
-function drawPset( pset, canvas, mapr, labels, lastcontour, fill ) {
+function drawPset( pset, canvas, mapr, labels, lastcontour, fillLevel ) {
 	ctx = canvas.getContext('2d');
 	labelmap = [];
 	todraw = Math.min(pset.length,lastcontour);
@@ -374,10 +387,6 @@ function drawPset( pset, canvas, mapr, labels, lastcontour, fill ) {
 		var contour = pset[i];
 		ctx.beginPath();
 		ctx.moveTo( mapr.x(contour[0][0]), mapr.y(contour[0][1]) );
-		//var fs = 'hsla('+360*(i*3)/(pset.length*3-1)+',100%,50%,0.05)';
-		var fs = 'hsla('+360*(i*3)/(pset.length*3-1)+',100%,50%,0.2)';
-		ctx.fillStyle = fs;
-		//console.log('fs',i*3,pset.length*3-1,fs );
 		for ( var j=0; j < contour.length; j++,pointindex+=dim ) {
 			var point = contour[j];
 			ctx.lineTo( mapr.x(point[0]), mapr.y(point[1]) );
@@ -393,7 +402,20 @@ function drawPset( pset, canvas, mapr, labels, lastcontour, fill ) {
 			}
 		}
 		ctx.closePath();
-		if (fill) ctx.fill();
+		if (fillLevel==1) {
+			//var fs = 'hsla('+360*(i*3)/(pset.length*3-1)+',100%,50%,0.05)';
+			//console.log('fs',i*3,pset.length*3-1,fs );
+			var fs = 'hsla('+360*(i*3)/(pset.length*3-1)+',100%,50%,0.2)';
+			ctx.fillStyle = fs;
+			ctx.strokeStyle = "black";
+			ctx.fill();
+		} else if (fillLevel==2) {
+			ctx.fillStyle = "gray";
+			ctx.strokeStyle = ctx.fillStyle;
+			ctx.fill();
+		} else {
+			ctx.strokeStyle = "black";
+		}
 		ctx.stroke();
 	}
 
@@ -429,17 +451,20 @@ function build_testmenu( canvasid ) {
 	}
 }
 
-function drawTest( pset, tris, report, canvas, showlabels, showtris ) 
+function drawTest( pset, tris, report, canvas, showlabels, fillLevel ) 
 {
 	ctx = canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
 	mapr = new PointMapper( pset, canvas );
 	triPset = makeTriPset( pset, tris, mapr ); 
-	drawPset( pset, canvas, mapr, showlabels, pset.length, false );
-	if ( showtris ) {
+	drawPset( pset, canvas, mapr, showlabels, pset.length, 0 );
+	if ( fillLevel == 1 ) {
 	//	for ( var i = 0; i < 6; i ++ ) { 
 			todraw = triPset.length;
-			drawPset( triPset, canvas, mapr, false, todraw, true );
+			drawPset( triPset, canvas, mapr, false, todraw, fillLevel );
 	//	}
+	} else if ( fillLevel == 2 ) {
+			todraw = triPset.length;
+			drawPset( triPset, canvas, mapr, false, todraw, fillLevel );
 	}
     var reportbox = document.getElementById("report");
 	reportbox.innerHTML = report + '<br/>' + tris;
@@ -452,7 +477,7 @@ function redraw( canvasid ) {
 			  testOutput[currentTestName]["report"],
 			  canvas,
 			  labelsToggle,
-			  trisToggle );
+			  fillToggle );
 }
 function redrawEarcutVersion ( canvasid ) {
 	// this section creates earcut.js versions of each test from testOutput
@@ -470,12 +495,12 @@ function redrawEarcutVersion ( canvasid ) {
 			  rpttxt,
 			  canvas,
 			  labelsToggle,
-			  trisToggle );
+			  fillToggle );
 }
 
 
 function labelsfunc( canvasid ) { labelsToggle = (labelsToggle+1)%3;redraw(canvasid);};
-function trisfunc( canvasid ) { trisToggle = !trisToggle; redraw(canvasid); };
+function trisfunc( canvasid ) { fillToggle = (fillToggle+1)%3; redraw(canvasid); };
 function earcutfunc( canvasid ) { redrawEarcutVersion( canvasid ); }
 
 function setupControls( canvasid ) {

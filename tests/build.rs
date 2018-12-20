@@ -39,7 +39,6 @@ fn test_list() -> Vec<(&'static str, usize, f32)> {
         ("shared-points", 4, 0.0),
         ("bad-diagonals", 7, 0.0),
         ("issue83", 0, 1e-14),
-        ("simple-touch", 2, 0.0),
     ]
 }
 

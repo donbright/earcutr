@@ -139,7 +139,7 @@ fn area_test(filename: &str, expected_num_tris: usize, expected_deviation: f64) 
         }
     };
 	let mut pass = true;
-    if expected_num_tris>0 && (expected_num_tris >  actual_num_tris) { pass = false; };
+    if expected_num_tris>0 && (expected_num_tris <  actual_num_tris) { pass = false; };
 	if edeviation < actual_deviation { pass = false; };
 	let rpt = format!("exp numtri:{}\nexp dev:{}\nact numtri:{}\nact dev:{}",
 		expected_num_tris,edeviation, actual_num_tris, actual_deviation);
