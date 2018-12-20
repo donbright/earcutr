@@ -127,6 +127,16 @@ Or pre-process the data with [Angus J's
 Clipper](http://angusj.com/delphi/clipper.php) which uses Vatti's 
 Algorithm to clean up 'polygon soup' type of data.
 
+#### But these algorithms are based on linked lists, which are hard in Rust?
+
+Yes. [A. Beinges's "Too Many Lists"](https://cglab.ca/~abeinges/blah/too-many-lists/book/) shows how to do Linked Lists in Rust.
+
+This code, instead, implements a Circular Doubly Linked List entirely on 
+top of a Rust Vector, so that there is no unsafe code, and no reference 
+cycles. This does not even use Rc, Box, Arc, etc. The pointers in normal 
+Linked List Node code have been replaced by integers which index into a 
+single Vector of Nodes.
+
 #### Install
 
 You can copy the earcutr.rs file into your own project and use it.
