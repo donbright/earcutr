@@ -101,7 +101,8 @@ fn mkoutput(filename: &str, tris: &Vec<usize>, data: &Vec<Vec<Vec<f64>>>, pass: 
 
 // this is called by test.rs, which is generated at compile time by 
 // build.rs running at the first stage of 'cargo test'.
-fn area_test(filename: &str, expected_num_tris: usize, expected_deviation: f64) -> Result<(), String> {
+fn area_test(filename: &str, expected_num_tris: usize, expected_deviation: f64) -> bool
+{
     let visualize = std::env::args().any(|x| x == "--test-threads=1");
     dlog!(4,"visualization: {}", visualize);
 	let mut actual_num_tris = 0;
@@ -138,15 +139,14 @@ fn area_test(filename: &str, expected_num_tris: usize, expected_deviation: f64) 
         }
     };
 	let mut pass = true;
-    if expected_num_tris>0 && (expected_num_tris !=  actual_num_tris) { pass = false; };
+    if expected_num_tris>0 && (expected_num_tris >  actual_num_tris) { pass = false; };
 	if edeviation < actual_deviation { pass = false; };
 	let rpt = format!("exp numtri:{}\nexp dev:{}\nact numtri:{}\nact dev:{}",
 		expected_num_tris,edeviation, actual_num_tris, actual_deviation);
     if visualize {
         mkoutput(&filename, &triangles, &xdata, pass, &rpt);
     }
-	if pass { return Ok(()); }
-	return Err(String::from( format!("{} {}",filename,rpt) ));
+	pass
 }
 
 /*

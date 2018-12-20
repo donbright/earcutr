@@ -51,8 +51,8 @@ fn main() {
 
     let txt = r###"
 #[test]
-fn __testname__() -> Result<(), String> {
-    return area_test("__filename__",__numtris__,__area__);
+fn __testname__() {
+    assert!(area_test("__filename__",__numtris__,__area__));
 }
 "###;
 
