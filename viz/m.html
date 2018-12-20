@@ -391,7 +391,7 @@ function drawPset( pset, canvas, mapr, labels, lastcontour, fillLevel ) {
 			var point = contour[j];
 			ctx.lineTo( mapr.x(point[0]), mapr.y(point[1]) );
 			if ( labels>0 ) { 
-				ctx.font="1em Verdana";
+				ctx.font="1.5em Verdana";
 				ctx.fillStyle = "black";
 				labeltxt = i+':'+j;
 				if (labels==2) labeltxt = pointindex;
@@ -458,14 +458,14 @@ function drawTest( pset, tris, report, canvas, showlabels, fillLevel )
 	triPset = makeTriPset( pset, tris, mapr ); 
 	drawPset( pset, canvas, mapr, showlabels, pset.length, 0 );
 	if ( fillLevel == 1 ) {
-	//	for ( var i = 0; i < 6; i ++ ) { 
 			todraw = triPset.length;
 			drawPset( triPset, canvas, mapr, false, todraw, fillLevel );
-	//	}
 	} else if ( fillLevel == 2 ) {
 			todraw = triPset.length;
 			drawPset( triPset, canvas, mapr, false, todraw, fillLevel );
 	}
+	//	for ( var i = 0; i < 6; i ++ ) { 
+	//	}
     var reportbox = document.getElementById("report");
 	reportbox.innerHTML = report + '<br/>' + tris;
 }
