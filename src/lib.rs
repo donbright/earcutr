@@ -3,6 +3,7 @@
 #![allow(unused_macros)]
 
 static NULL: usize = 0x777A91CC;
+static NULL32: u32 = 0xFFFFFFFF;
 static DEBUG: usize = 0;//9;
 
 /*
@@ -59,7 +60,7 @@ impl Node {
             y: y,
             prev_idx: NULL,
             next_idx: NULL,
-            z: 0,
+            z: NULL32,
             nextz_idx: NULL,
             prevz_idx: NULL,
             steiner: false,
@@ -372,8 +373,8 @@ fn earcut_linked(
 
         let test;
         if invsize > 0.0 {
-//            test = is_ear_hashed(ll, ear, minx, miny, invsize);
-            test = is_ear(ll, ear);
+            test = is_ear_hashed(ll, ear, minx, miny, invsize);
+//            test = is_ear(ll, ear);
         } else {
             test = is_ear(ll, ear);
         }
@@ -428,7 +429,7 @@ fn index_curve(ll: &mut LL, start: NodeIdx, minx: f64, miny: f64, invsize: f64) 
     );
     let mut p = start;
     loop {
-        if node!(ll, p).z == NULL as u32 {
+        if node!(ll, p).z == NULL32 {
             node!(ll, p).z = zorder(node!(ll, p).x, node!(ll, p).y, minx, miny, invsize);
         }
         node!(ll, p).prevz_idx = node!(ll, p).prev_idx;
@@ -649,10 +650,10 @@ fn is_ear_hashed(ll: &mut LL, ear: usize, minx: f64, miny: f64, invsize: f64) ->
     );
 
     dlog!(9, "ec1 hashed: {}", ll.dump());
-    while p != NULL && node!(ll, p).z >= min_z && n != NULL && node!(ll, n).z <= max_z {
+    while (p != NULL) && (node!(ll, p).z >= min_z) && (n != NULL) && (node!(ll, n).z <= max_z) {
         dlog!(8, "look for points inside the triangle in both directions");
-        if p != node!(ll, ear).prev_idx
-            && p != node!(ll, ear).next_idx
+        if (p != node!(ll, ear).prev_idx)
+            && (p != node!(ll, ear).next_idx)
             && point_in_triangle(ax, ay, bx, by, cx, cy, node!(ll, p).x, node!(ll, p).y)
             && area(&prev!(ll, p), &node!(ll, p), &next!(ll, p)) >= 0.0
         {
@@ -660,8 +661,8 @@ fn is_ear_hashed(ll: &mut LL, ear: usize, minx: f64, miny: f64, invsize: f64) ->
         }
         p = node!(ll, p).prevz_idx;
 
-        if n != node!(ll, ear).prev_idx
-            && n != node!(ll, ear).next_idx
+        if (n != node!(ll, ear).prev_idx)
+            && (n != node!(ll, ear).next_idx)
             && point_in_triangle(ax, ay, bx, by, cx, cy, node!(ll, n).x, node!(ll, n).y)
             && area(&prev!(ll, n), &node!(ll, n), &next!(ll, n)) >= 0.0
         {
@@ -671,10 +672,10 @@ fn is_ear_hashed(ll: &mut LL, ear: usize, minx: f64, miny: f64, invsize: f64) ->
     }
 
     dlog!(9, "ec2 hashed: {}", ll.dump());
-    while p != NULL && node!(ll, p).z >= min_z {
+    while (p != NULL) && (node!(ll, p).z >= min_z) {
         dlog!(8, "look for remaining points in decreasing z-order");
-        if p != node!(ll, ear).prev_idx
-            && p != node!(ll, ear).next_idx
+        if (p != node!(ll, ear).prev_idx)
+            && (p != node!(ll, ear).next_idx)
             && point_in_triangle(ax, ay, bx, by, cx, cy, node!(ll, p).x, node!(ll, p).y)
             && area(&prev!(ll, p), &node!(ll, p), &next!(ll, p)) >= 0.0
         {
@@ -687,8 +688,8 @@ fn is_ear_hashed(ll: &mut LL, ear: usize, minx: f64, miny: f64, invsize: f64) ->
     dlog!(9, "ec3 hashed: {}", ll.dump());
     while n != NULL && node!(ll, n).z <= max_z {
         dlog!(8, "look for remaining points in increasing z-order");
-        if n != node!(ll, ear).prev_idx
-            && n != node!(ll, ear).next_idx
+        if (n != node!(ll, ear).prev_idx)
+            && (n != node!(ll, ear).next_idx)
             && point_in_triangle(ax, ay, bx, by, cx, cy, node!(ll, n).x, node!(ll, n).y)
             && area(&prev!(ll, n), &node!(ll, n), &next!(ll, n)) >= 0.0
         {
