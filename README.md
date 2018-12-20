@@ -1,6 +1,8 @@
 ## Earcutr
 
-WARNING - in progress, doesnt work yet
+Warning: This is a work in progress, not 100% equivalent to earcut.js 
+yet, it needs some speed improvement, however only one test fails as of 
+this writing.
 
 Polygon triangulation library, translated into Rust computer language from
 the original Earcut project from MapBox. https://github.com/mapbox/earcut
@@ -10,7 +12,7 @@ the original Earcut project from MapBox. https://github.com/mapbox/earcut
 #### Usage
 
 ```rust
-var triangles = earcut([10,0, 0,50, 60,60, 70,10]); // returns [1,0,3, 3,2,1]
+var triangles = earcut([10,0, 0,50, 60,60, 70,10]);
 ```
 
 Signature: `earcut(vertices[, holes, dimensions = 2])`.
@@ -38,81 +40,22 @@ If your input is a multi-dimensional array (e.g. [GeoJSON Polygon](http://geojso
 you can convert it to the format expected by Earcut with `earcut.flatten`:
 
 ```rust
-var data = earcut.flatten(geojson.geometry.coordinates);
-var triangles = earcut(data.vertices, data.holes, data.dimensions);
+let v = vec![vec![vec![0.0,0.0],vec![1.0,0.0],vec![1.0,1.0],vec![0.0,1.0]]];
+let holes:Vec<usize> = vec![];
+let data = earcutr.flatten( v );
+let triangles = earcut(&data.vertices, &data.holes, data.dimensions);
 ```
 
-After getting a triangulation, you can verify its correctness with `earcut.deviation`:
+After getting a triangulation, you can verify its correctness with 
+`earcutr.deviation`:
 
 ```rust
-var deviation = earcut.deviation(vertices, holes, dimensions, triangles);
+let deviation = earcutr.deviation(&data.vertices, &data.holes, data.dimensions, &triangles);
 ```
 
-Returns the relative difference between the total area of triangles and the area of the input polygon.
-`0` means the triangulation is fully correct.
-
-#### How it works: The data
-
-The main data structure is a list of lists, and each of those in turn is 
-a sequence of points, with Cartesian coordinates. (x,y)
-
-    Object = [ List1, List2, ... ]
-    List1 = [[0,1], [2,4], [3,5],...]
-    List2 = [[1,3], [0,0], [-2,-4],...]
-    ...
-
-Each List represents a polygon, also called a contour, or a ring of 
-points. The first List is considered the 'body' or main shape. The rest 
-of the lists are each a 'hole' within the main body.
-
-For example a rectangle could be [ [ [0,0],[7,0],[7,4],[0,4] ] ]
-This has a single contour, with four points.
-
-    _______
-    |     |
-    |     |
-    |     |
-    |_____|
- 
-A square with a triangle shaped hole in the middle would be as follows
-[ [ [0,0],[7,0],[7,4],[0,4] ],
-  [ [1,1],[3,1],[3,3] ] ]
-
-This has two contours, the first with four points, the second with three points.
-
-    _______
-    |     |
-    |  /| |
-    | /_| |
-    |_____|
-
-Now, we can convert these arrays of coordinates into a single array, by 
-having some additional information stored alongside it.
-
-For the rectangle, here is how the data looks: [ [ [0,0],[7,0],[7,4],[0,4] ] ]
-After we convert it to a single array, it looks like this:
-
-    data [ 0,0,7,0,7,4,0,4 ]
-    holeindexes: []
-    dimensions: 2
-
-Notice we can still interpret the data as a sequence of points.
-
-Now, lets try the same with the rectangle+hole:
-
-    data [ 0,0,7,0,7,4,0,4,1,1,3,1,3,3  ]
-    holeindexes: [ 8 ]
-    dimensions: 2
-
-Notice we can still interpret the data as a sequence of points,
-and by looking at 'hole indexes' we can figure out where the first contour
-ends and the next begins. If we had two holes, there'd be two holeindexes.
-
-In some systems 'winding' of the holes differs from that of the 'body'. In
-other words if your ead the points off in order, they will be clockwise
-for the body, and counterclockwise for the holes (or vice versa).
-
-Data examples are included under tests/fixtures in json files.
+Returns the relative difference between the total area of triangles and 
+the area of the input polygon. `0` means the triangulation is fully 
+correct.
 
 #### How it works: The algorithm
 
@@ -126,14 +69,63 @@ It's based on ideas from
 [FIST: Fast Industrial-Strength Triangulation of Polygons](http://www.cosy.sbg.ac.at/~held/projects/triang/triang.html) by Martin Held
 and [Triangulation by Ear Clipping](http://www.geometrictools.com/Documentation/TriangulationByEarClipping.pdf) by David Eberly.
 
+#### Visual example
+
+For example a rectangle could be given in GeoJSON format like so:
+
+    [ [ [0,0],[7,0],[7,4],[0,4] ] ]
+
+This has a single contour, or ring, with four points. The way
+the points are listed, it looks 'counter-clockwise' or 'anti-clockwise'
+on the page. This is the 'winding' and signifies that it is an 'outer'
+ring, or 'body' of the shape.
+
+    _______
+    |     |
+    |     |
+    |     |
+    |_____|
+ 
+A square with a triangle shaped hole in the middle would be as follows
+
+    [ 
+      [ [0,0],[7,0],[7,4],[0,4] ],   
+      [ [1,1],[3,1],[3,3] ] 
+    ]
+
+This has two contours (rings), the first with four points, the second 
+with three points. The second has 'clockwise' winding, signifying it is
+a 'hole'.
+
+    _______
+    |     |
+    |  /| |
+    | /_| |
+    |_____|
+
+After 'flattening', we end up with a single array:
+
+    data [ 0,0,7,0,7,4,0,4,1,1,3,1,3,3  ]
+    holeindexes: [ 8 ]
+    dimensions: 2
+
+Notice we can still interpret the data as a sequence of points,
+and by looking at 'hole indexes' we can figure out where the first contour
+ends and the next begins. If we had two holes, there'd be two holeindexes.
+
+Data examples are included under tests/fixtures in json files.
+
 #### Why another triangulation library?
 
-The aim of this project is to create a Rust language triangulation 
-library that is very simple while being robust enough to handle most 
-practical datasets without crashing or producing garbage.
+This is for speed, simplicity, small size, and to make a port of earcut.js
+to Rust.
 
 If you want to get correct triangulation even on very bad data with lots of self-intersections
 and earcutr is not precise enough, take a look at [libtess.js](https://github.com/brendankenny/libtess.js).
+
+Or pre-process the data with [Angus J's 
+Clipper](http://angusj.com/delphi/clipper.php) which uses Vatti's 
+Algorithm to clean up 'polygon soup' type of data.
 
 #### Install
 
@@ -144,10 +136,9 @@ To download the full library, with tests,
 ```bash
 git clone github.com/donbright/earcutr
 cd earcutr
-cargo build
-cargo test -- --nocapture # shows all output
-cargo test -- --test-threads=1  # test-threads=1 will enable visualization
-ls viz/testoutput.json # test in visualiztaion mode will create this file
+cargo test                      # normal build and test report
+cargo test -- --test-threads=1  # test-threads=1 will create visualization data
+ls viz/testoutput.json # if visualization worked, this file will be created
 cd viz                 # vizualisation code lives here, it's javascript/html
 firefox viz.html       # view in your favorite web browser (circa 2018)
 ```
