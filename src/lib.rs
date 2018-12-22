@@ -121,6 +121,25 @@ struct LL {
     freelist: Vec<NodeIdx>, // remove nodes have their index stored here
 }
 
+// https://www.cs.hmc.edu/~geoff/classes/hmc.cs070.200101/homework10/hashfuncs.html
+// https://stackoverflow.com/questions/1908492/unsigned-integer-in-javascript
+fn horsh( mut h:u32, n:u32 ) -> u32 {
+     let highorder = h & 0xf8000000  ;  // extract high-order 5 bits from h
+//	println!("horsha {} {}",h,n);
+                                   // 0xf8000000 is the hexadecimal representat$
+                                   //   for the 32-bit number with the first fi$
+                                   //   bits = 1 and the other bits = 0   
+     h = h << 5                   ; // shift h left by 5 bits
+//	println!("horshb {} {}",h,n);
+     h = h ^ (highorder >> 27)   ;  // move the highorder 5 bits to the low-ord$
+//	println!("horshc {} {}",h,n);
+                                   //   end and XOR into h
+     h = h ^ n                  ;  // XOR h and ki
+//	println!("horshd {} {}",h,n);
+    return h;
+}
+
+
 impl LL {
     fn cycles_report(&self) -> String {
         if self.nodes.len() == 0 {
@@ -188,7 +207,7 @@ impl LL {
             " {:>3} {:>3} {:>4} {:>4} {:>8.3} {:>8.3} {:>4} {:>4} {:>2} {:>2} {:>2}\n",
             "vi", "i", "p", "n", "x", "y", "pz", "nz", "st", "fr", "cyl"
         ));
-        for (vi, n) in self.nodes.iter().enumerate() {
+        for n in self.nodes.iter() {
             s.push_str(&format!(
                 " {:>3} {:>3} {:>4} {:>4} {:>8.3} {:>8.3} {:>4} {:>4} {:>2} {:>2} {:>2}\n",
                 n.idx,
@@ -204,6 +223,86 @@ impl LL {
                 self.cycle_len(n.idx),
             ));
         }
+        return s;
+    }
+
+	// find the node with 'i' of starti, horsh it
+	fn horsh(&self, starti:usize ) -> String {
+        let mut s = format!("LL horsh: ");
+	let mut startidx:usize = 0;
+    for n in self.nodes.iter() {
+		if n.i==starti {startidx=n.idx;};
+	}
+	let endidx = startidx;
+	let mut idx = startidx;
+	let mut count = 0;
+	let mut state = 0u32;
+		loop {
+	    let n = self.nodes[idx].clone();
+		state = horsh( state, n.i  as u32);
+	    idx = next!(self,idx).idx;
+		count +=1 ;
+	    if idx==endidx { break; }
+        }
+        s.push_str(&format!(" count:{} horsh: {}",count,state));
+        return s;
+	}
+
+    fn dump_cycle(&self,start:usize) -> String {
+        fn pn(a: usize) -> String {
+            if a == NULL {
+                return String::from("NULL");
+            } else {
+                return a.to_string();
+            }
+        }
+        fn pb(a: bool) -> String {
+            if a == true {
+                return String::from("tr");
+            } else {
+                return String::from("fl");
+            }
+        }
+        let mut s = format!("LL, #nodes: {}", self.nodes.len());
+        s.push_str(&format!(
+            " #used: {}\n",
+            self.nodes.len() - self.freelist.len()
+        ));
+        s.push_str(&format!(
+            " {:>3} {:>3} {:>3} {:>4} {:>4} {:>8.3} {:>8.3} {:>4} {:>4} {:>2} {:>2} {:>2}\n",
+            "#", "vi", "i", "p", "n", "x", "y", "pz", "nz", "st", "fr", "cyl"
+        ));
+	let mut startidx:usize = 0;
+    for n in self.nodes.iter() {
+		if n.i==start {startidx=n.idx;};
+	}
+	let endidx = startidx;
+	let mut idx = startidx;
+	let mut count = 0;
+	let mut state = 0u32;
+	loop {
+	    let n = self.nodes[idx].clone();
+		state = horsh( state, n.i  as u32);
+            s.push_str(&format!(
+                " {:>3} {:>3} {:>3} {:>4} {:>4} {:>8.3} {:>8.3} {:>4} {:>4} {:>2} {:>2} {:>2}\n",
+                count,
+				n.idx,
+                n.i,
+                prev!(self,n.idx).i,
+                next!(self,n.idx).i,
+                n.x,
+                n.y,
+                pn(n.prevz_idx),
+                pn(n.nextz_idx),
+                pb(n.steiner),
+                pb(self.freelist.contains(&n.idx)),
+                self.cycle_len(n.idx),
+            ));
+	    idx = next!(self,idx).idx;
+		count +=1 ;
+	    if idx==endidx { break; }
+        }
+        s.push_str(&format!("dump end, horsh: {}",state));
         return s;
     }
     fn insert_node(&mut self, i: usize, x: f64, y: f64, new_head: bool) {
@@ -340,23 +439,25 @@ fn eliminate_holes(
     for i in 0..queue.len() {
         dlog!(
             4,
-            "eliminating hole begin {} of {}, outernode.i:{} cyclelen:{}",
+            "eliminating hole begin {} of {}, outernode.i:{} cyclelen:{} horsh:{}",
             i,
             queue.len(),
             node!(ll, outer_node).i,
-            ll.cycle_len(outer_node)
+            ll.cycle_len(outer_node),
+			ll.horsh(node!(ll,outer_node).i)
         );
-        dlog!(4, "{}", ll.dump());
+        //if i == 11 { dlog!(4, "{}", ll.dump_cycle(node!(ll,outer_node).i)); }
         eliminate_hole(ll, queue[i].idx, outer_node);
         dlog!(
             4,
-            "eliminating hole end   {} of {}, outernode.i:{} cyclelen:{}",
+            "eliminating hole end   {} of {}, outernode.i:{} cyclelen:{} horsh:{}",
             i,
             queue.len(),
             node!(ll, outer_node).i,
-            ll.cycle_len(outer_node)
+            ll.cycle_len(outer_node),
+			ll.horsh(node!(ll,outer_node).i)
         );
-        dlog!(4, "{}", ll.dump());
+        //if i == 11 { dlog!(4, "{}", ll.dump_cycle(node!(ll,outer_node).i)); }
         let nextidx = next!(ll, outer_node).idx;
         outer_node = filter_points(ll, outer_node, nextidx);
     }
@@ -1030,6 +1131,8 @@ pub fn earcut(data: &Vec<f64>, hole_indices: &Vec<usize>, ndim: usize) -> Vec<us
         invsize = calc_invsize(minx, miny, maxx, maxy);
     }
 
+	println!("{}",ll.dump_cycle(node!(ll,outer_node).i));
+
     // so basically, for data len < 80*dim, minx,miny are 0
     earcut_linked(
         &mut ll,
@@ -1236,7 +1339,6 @@ fn find_hole_bridge(ll: &LL, hole: &Node, outer_node: NodeIdx) -> NodeIdx {
         hole.i,
         node!(ll, outer_node).i
     );
-    dlog!(5, "{}", ll.dump());
     if outer_node >= ll.nodes.len() {
         return NULL;
     }
@@ -1276,21 +1378,12 @@ fn find_hole_bridge(ll: &LL, hole: &Node, outer_node: NodeIdx) -> NodeIdx {
                 };
             }
         }
-        dlog!(
-            9,
-            "find hole bridge loop 1 p,outernode {} {}",
-            p,
-            outer_node
-        );
         p = next!(ll, p).idx;
         if p == outer_node {
             break;
         }
     }
 
-    dlog!(4, "find hole bridge st1 p {}", node!(ll, p).i);
-
-    //	dlog!(4,"fhb first loop done. m:{} hx:{} qx:{}",m,hx,qx);
     if m == NULL {
         return NULL;
     }
@@ -1317,99 +1410,25 @@ fn find_hole_bridge(ll: &LL, hole: &Node, outer_node: NodeIdx) -> NodeIdx {
         let (px, py) = (node!(ll, p).x, node!(ll, p).y);
         let x1 = if hy < my { hx } else { qx };
         let x2 = if hy < my { qx } else { hx };
-        if hole.i==2674 && 1500 > node!(ll, p).i && node!(ll, p).i > 1300 {
-            dlog!(
-                4,
-                "find hole bridge st2 p m {} {}",
-                node!(ll, p).i,
-                node!(ll, m).i
-            );
-            dlog!(4, "find hole bridge sty {} {} {}", hx, px, mx);
-            dlog!(
-                4,
-                "find hole bridge sty {} {} {}",
-                hx >= px,
-                px >= mx,
-                hx != px
-            );
-            dlog!(
-                4,
-                "find hole bridge sty {} {} {} {} {} {} {} {}",
-                x1,
-                hy,
-                mx,
-                my,
-                x2,
-                hy,
-                px,
-                py
-            );
-            dlog!(
-                4,
-                "point in tri {}",
-                point_in_triangle(x1, hy, mx, my, x2, hy, px, py)
-            );
-        };
-
         if (hx >= px)
             && (px >= mx)
             && (hx != px)
             && point_in_triangle(x1, hy, mx, my, x2, hy, px, py)
         {
-			dlog!(4,"point in tri success");
-            //			dlog!(4,"fhb loop 2 inner");
             tan = (hy - py).abs() / (hx - px); // tangential
 
-            dlog!(
-                4,
-                "find hole bridge stx {} {} {} {}",
-                tan,
-                tan_min,
-                node!(ll, p).x,
-                node!(ll, m).x
-            );
-            dlog!(
-                4,
-                "find hole bridge stx {} {} {}",
-                tan < tan_min,
-                tan == tan_min,
-                node!(ll, p).x > node!(ll, m).x
-            );
             if ((tan < tan_min) || ((tan == tan_min) && (px > node!(ll, m).x)))
                 && locally_inside(ll, &node!(ll, p), &hole)
             {
-                if hole.i == 2674 && 1500 > node!(ll, p).i && node!(ll, p).i > 1300 {
-                    dlog!(
-                        4,
-                        "find hole bridge st99 p m {} {}",
-                        node!(ll, p).i,
-                        node!(ll, m).i
-                    );
-                };
                 m = p;
                 mx = node!(ll, m).x;
                 my = node!(ll, m).y;
                 tan_min = tan;
             }
-        } else {
-			dlog!(4,"point in tri failed");
-		}
-
-        dlog!(
-            9,
-            "find hole bridge loop 2 p,stop {} {}",
-            node!(ll, p).i,
-            node!(ll, stop).i
-        );
+	}
         p = next!(ll, p).idx;
     }
 
-    dlog!(
-        4,
-        "find hole bridge st3 p m {} {}",
-        node!(ll, p).i,
-        node!(ll, m).i
-    );
     return m;
 }
 
