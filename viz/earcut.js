@@ -45,7 +45,7 @@ function earcut(data, holeIndices, dim) {
 
 // create a circular doubly linked list from polygon points in the specified winding order
 function linkedList(data, start, end, dim, clockwise) {
-	console.log("llist"+data.length+","+start+","+end+","+dim+","+clockwise);
+	console.log("llist"+data.length+","+start.i+","+end.i+","+dim+","+clockwise);
     var i, last;
 
     if (clockwise === (signedArea(data, start, end, dim) > 0)) {
@@ -88,9 +88,12 @@ function filterPoints(start, end) {
     return end;
 }
 
-// main ear slicing loop which triangulates a polygon (given as a linked list)
+/* main ear slicing loop which triangulates a polygon (given as a linked list).
+nodes are removed from the linked list as the triangles are added.
+*/
 function earcutLinked(ear, triangles, dim, minX, minY, invSize, pass) {
 	console.log("earcutlinked: ear.i:",ear.i,"pass:",pass);
+	dumplist(ear);
 	//",",dim,minX,minY,invSize,pass);
     if (!ear) return;
 
@@ -111,14 +114,39 @@ function earcutLinked(ear, triangles, dim, minX, minY, invSize, pass) {
             triangles.push(ear.i / dim);
             triangles.push(next.i / dim);
 
+//			console.log("earcutlinked beg removeNode ear.i:",ear.i," cyclen:",cycle_len(ear));
             removeNode(ear);
 
             // skipping the next vertex leads to less sliver triangles
             ear = next.next;
             stop = next.next;
 
+//			console.log("earcutlinked end removeNode ear.i:",ear.i," cyclen:",cycle_len(ear));
             continue;
         }
+
+		/*
+4:earcutlinked beg remove_node ear.i 1454 cyclen 1339
+4:earcutlinked end remove_node ear.i 1450 cyclen 1338
+4:earcutlinked beg remove_node ear.i 1448 cyclen 1338 << vi 327,n328,nn1323
+4:earcutlinked end remove_node ear.i 2674 cyclen 1337 <<<<< vi i p n vi:1323
+4:earcutlinked beg remove_node ear.i 2674 cyclen 1337
+4:earcutlinked end remove_node ear.i 2670 cyclen 1336
+4:earcutlinked beg remove_node ear.i 2660 cyclen 1336
+4:earcutlinked end remove_node ear.i 2656 cyclen 1335
+4:earcutlinked beg remove_node ear.i 1446 cyclen 1335
+4:earcutlinked end remove_node ear.i 1442 cyclen 1334
+b 1454 1339 --
+e 1450 1338 --
+b 1448 1338 --
+e 1444 1337 xx <<<<<<<<< s/b vi 329
+b 2660 1337 xx
+e 2656 1336 xx
+b 1440 1336
+e 1436 1335
+b 1434 1335
+e 1430 1334
+		*/
 
         ear = next;
 
@@ -165,7 +193,7 @@ function isEar(ear) {
 }
 
 function isEarHashed(ear, minX, minY, invSize) {
-	console.log("isearhashed",ear.i,minX,minY,invSize);
+	//console.log("isearhashed",ear.i,minX,minY,invSize);
     var a = ear.prev,
         b = ear,
         c = ear.next;
@@ -273,6 +301,49 @@ function splitEarcut(start, triangles, dim, minX, minY, invSize) {
     } while (a !== start);
 }
 
+function cycle_len(node) {
+	var start = node;
+    var a = start;
+	var count = 0;
+	var s1 = a.i;
+	var s2 = -1;
+	do {
+		count += 1;
+		s2 = a.i;
+		a = a.next;
+	} while (a != start);
+	return count;
+}
+
+function dumpnodes(node) {
+return;
+	console.log("ll dump");
+	var start = node;
+    var a = start;
+	var count = 0;
+	var s1 = a.i;
+	var s2 = -1;
+	do {
+		console.log(count,a.i,a.prev.i,a.next.i,a.x,a.y,a.steiner);
+		count += 1;
+		a = a.next;
+	} while (a != start);
+}
+
+function dumplist(node) {
+	var start = node;
+    var a = start;
+	var count = 0;
+	var s1 = a.i;
+	var s2 = -1;
+	do {
+		count += 1;
+		s2 = a.i;
+		a = a.next;
+	} while (a != start);
+	console.log("ll count:",count, " 1sti:",s1," lasti:", s2);
+}
+
 // link every hole into the outer loop, producing a single-ring polygon without holes
 function eliminateHoles(data, holeIndices, outerNode, dim) {
 	console.log("eliminateHoles",data,holeIndices,outerNode,dim);
@@ -280,19 +351,24 @@ function eliminateHoles(data, holeIndices, outerNode, dim) {
         i, len, start, end, list;
 
     for (i = 0, len = holeIndices.length; i < len; i++) {
+		console.log("elim holes ++ begin holei:",i, "nodes:",cycle_len(outerNode));
         start = holeIndices[i] * dim;
         end = i < len - 1 ? holeIndices[i + 1] * dim : data.length;
         list = linkedList(data, start, end, dim, false);
         if (list === list.next) list.steiner = true;
         queue.push(getLeftmost(list));
+		console.log("elim holes ++ end   holei:",i, "nodes:",cycle_len(outerNode));
     }
 
     queue.sort(compareX);
+	console.log("queue ", queue);
 
     // process holes from left to right
     for (i = 0; i < queue.length; i++) {
-		console.log("eliminating hole "+i+" of "+queue.length);
+		console.log("eliminating hole begin, "+i+" of "+queue.length,"outerNode.i",outerNode.i," cyclelen",cycle_len(outerNode));
+		if (i==11) dumpnodes(outerNode);
         eliminateHole(queue[i], outerNode);
+		console.log("eliminating hole end,   "+i+" of "+queue.length,"outerNode.i",outerNode.i," cyclelen",cycle_len(outerNode));
         outerNode = filterPoints(outerNode, outerNode.next);
     }
 
@@ -325,20 +401,23 @@ function findHoleBridge(hole, outerNode) {
     // find a segment intersected by a ray from the hole"s leftmost point to the left;
     // segment"s endpoint with lesser x will be potential connection point
     do {
-        if (hy <= p.y && hy >= p.next.y && p.next.y !== p.y) {
-            var x = p.x + (hy - p.y) * (p.next.x - p.x) / (p.next.y - p.y);
-            if (x <= hx && x > qx) {
-                qx = x;
-                if (x === hx) {
+        if (   hy <= p.y 
+            && hy >= p.next.y 
+            && p.next.y !== p.y) {
+               var x = p.x + (hy - p.y) * (p.next.x - p.x) / (p.next.y - p.y);
+               if (x <= hx && x > qx) {
+                  qx = x;
+                  if (x === hx) {
                     if (hy === p.y) return p;
                     if (hy === p.next.y) return p.next;
-                }
-                m = p.x < p.next.x ? p : p.next;
-            }
+                  }
+                  m = p.x < p.next.x ? p : p.next;
+               }
         }
         p = p.next;
     } while (p !== outerNode);
 
+	console.log("findholebridge st1 p", p);
     if (!m) return null;
 
     if (hx === qx) return m.prev; // hole touches outer segment; pick lower endpoint
@@ -355,21 +434,58 @@ function findHoleBridge(hole, outerNode) {
 
     p = m.next;
 
+
     while (p !== stop) {
-        if (hx >= p.x && p.x >= mx && hx !== p.x &&
-                pointInTriangle(hy < my ? hx : qx, hy, mx, my, hy < my ? qx : hx, hy, p.x, p.y)) {
+/*		if (hole.i ==2674 && 1500>p.i && p.i>1300){
+ console.log("findholebridge st2 p m", p.i, m.i);
+var  x1 =  hy < m.y ? hx : qx ;
+    var  x2 =  hy < m.y ? qx : hx ;
+console.log("find hole bridge sty ",hx,p.x,m.x);
+console.log("find hole bridge sty ",hx>=p.x,p.x>=m.x,hx !== p.x);
+console.log("find hole bridge sty ",
+x1,hy,m.x,m.y,x2,hy,p.x,p.y);
+console.log("point in tri ",pointInTriangle(x1, hy, m.x, m.y, x2, hy, p.x, p.y));
 
+}*/
+
+var x1 = hy < my ? hx : qx;
+var x2 = hy < my ? qx : hx; 
+
+        if ( 
+ (hx >= p.x)
+&& (p.x >= mx) 
+&& (hx !== p.x) 
+&&              pointInTriangle(
+x1,
+hy, 
+mx, 
+my, 
+x2,
+hy, 
+p.x, 
+p.y)) {
+
+			console.log("point in tri success");
             tan = Math.abs(hy - p.y) / (hx - p.x); // tangential
+			if (hole.i==2674 && (1500>p.i && p.i>1300)) {
+				console.log("findholebridge stx", tan, tanMin, p.x, m.x);
+				console.log("findholebridge stx", tan< tanMin, tan==tanMin,p.x> m.x);
+			}
+            if ((tan < tanMin || (tan === tanMin && p.x > m.x)) && 
+locallyInside(p, hole)) {
 
-            if ((tan < tanMin || (tan === tanMin && p.x > m.x)) && locallyInside(p, hole)) {
+				if (hole.i==2674 && (1500>p.i && p.i>1300)) console.log("findholebridge st99 p m", p.i, m.i);
                 m = p;
                 tanMin = tan;
             }
-        }
+        } else {
+//			console.log("point in tri failed");
+		}
 
         p = p.next;
     }
 
+	console.log("findholebridge st3 p m", p, m);
     return m;
 }
 
@@ -466,7 +582,7 @@ function zOrder(x, y, minX, minY, invSize) {
 
 // find the leftmost node of a polygon ring
 function getLeftmost(start) {
-	console.log("getleftmost",start);
+	console.log("getleftmost ",start.i);
     var p = start,
         leftmost = start;
     do {
@@ -479,7 +595,7 @@ function getLeftmost(start) {
 
 // check if a point lies within a convex triangle
 function pointInTriangle(ax, ay, bx, by, cx, cy, px, py) {
-//	console.log("point in tri",ax,ay,bx,by,cx,cy,px,py);
+	//console.log("point in tri",ax,ay,bx,by,cx,cy,px,py);
     return (cx - px) * (ay - py) - (ax - px) * (cy - py) >= 0 &&
            (ax - px) * (by - py) - (bx - px) * (ay - py) >= 0 &&
            (bx - px) * (cy - py) - (cx - px) * (by - py) >= 0;
@@ -605,7 +721,7 @@ function insertNode(i, x, y, last) {
 }
 
 function removeNode(p) {
-	console.log("removeNode",p);
+//	console.log("removeNode",p.i);
     p.next.prev = p.prev;
     p.prev.next = p.next;
 
@@ -667,7 +783,7 @@ earcut.deviation = function (data, holeIndices, dim, triangles) {
 };
 
 function signedArea(data, start, end, dim) {
-	console.log("signedarea",data,start,end,dim);
+	//console.log("signedarea",data,start,end,dim);
     var sum = 0;
     for (var i = start, j = end - dim; i < end; i += dim) {
         sum += (data[j] - data[i]) * (data[i + 1] + data[j + 1]);
