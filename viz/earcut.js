@@ -18,6 +18,7 @@ function earcut(data, holeIndices, dim) {
     var minX, minY, maxX, maxY, x, y, invSize;
 
     if (hasHoles) outerNode = eliminateHoles(data, holeIndices, outerNode, dim);
+	console.log("earcutdump",data[190],data[191]);
 
     // if the shape is not too simple, we"ll use z-order curve hash later; calculate polygon bbox
     if (data.length > 80 * dim) {
@@ -38,8 +39,6 @@ function earcut(data, holeIndices, dim) {
         invSize = invSize !== 0 ? 1 / invSize : 0;
     }
 
-	dumpnodes( outerNode );
-
     earcutLinked(outerNode, triangles, dim, minX, minY, invSize);
 
     return triangles;
@@ -51,9 +50,11 @@ function linkedList(data, start, end, dim, clockwise) {
     var i, last;
 
     if (clockwise === (signedArea(data, start, end, dim) > 0)) {
-        for (i = start; i < end; i += dim) last = insertNode(i, data[i], data[i + 1], last);
+        for (i = start; i < end; i += dim)
+			last = insertNode(i, data[i], data[i + 1], last);
     } else {
-        for (i = end - dim; i >= start; i -= dim) last = insertNode(i, data[i], data[i + 1], last);
+        for (i = end - dim; i >= start; i -= dim)
+			last = insertNode(i, data[i], data[i + 1], last);
     }
 
     if (last && equals(last, last.next)) {
@@ -95,7 +96,6 @@ nodes are removed from the linked list as the triangles are added.
 */
 function earcutLinked(ear, triangles, dim, minX, minY, invSize, pass) {
     console.log("earcutlinked: ear.i:", ear.i, "pass:", pass);
-    dumplist(ear);
     //",",dim,minX,minY,invSize,pass);
     if (!ear) return;
 
@@ -347,11 +347,10 @@ function llhorsh(node) {
         count += 1;
         a = a.next;
     } while (a != start);
-    console.log("ll horshed. count: ",count,"horsh: ",state);
+    return "horshcount:"+count+" horsh:"+state;
 }
 
 function dumpnodes(node) {
-    console.log("ll dump");
     var start = node;
     var a = start;
     var count = 0;
@@ -388,27 +387,20 @@ function eliminateHoles(data, holeIndices, outerNode, dim) {
         i, len, start, end, list;
 
     for (i = 0, len = holeIndices.length; i < len; i++) {
-        console.log("elim holes ++ begin holei:", i, "nodes:", cycle_len(outerNode));
         start = holeIndices[i] * dim;
         end = i < len - 1 ? holeIndices[i + 1] * dim : data.length;
         list = linkedList(data, start, end, dim, false);
         if (list === list.next) list.steiner = true;
         queue.push(getLeftmost(list));
-        console.log("elim holes ++ end   holei:", i, "nodes:", cycle_len(outerNode));
     }
 
     queue.sort(compareX);
-    console.log("queue ", queue);
 
     // process holes from left to right
     for (i = 0; i < queue.length; i++) {
-        console.log("eliminating hole begin, " + i + " of " + queue.length, "outerNode.i", outerNode.i, " cyclelen", cycle_len(outerNode));
-		llhorsh( outerNode) ;
-//        if (i == 11) dumpnodes(outerNode);
+        console.log("eliminating hole begin, " + i + " of " + queue.length, "outerNode.i", outerNode.i, " cyclelen", cycle_len(outerNode),llhorsh( outerNode) );
         eliminateHole(queue[i], outerNode);
-        console.log("eliminating hole end,   " + i + " of " + queue.length, "outerNode.i", outerNode.i, " cyclelen", cycle_len(outerNode), "horsh");
-		llhorsh( outerNode) ;
-//        if (i == 11) dumpnodes(outerNode);
+        console.log("eliminating hole end,   " + i + " of " + queue.length, "outerNode.i", outerNode.i, " cyclelen", cycle_len(outerNode), llhorsh( outerNode) );
         outerNode = filterPoints(outerNode, outerNode.next);
     }
 
@@ -421,7 +413,7 @@ function compareX(a, b) {
 
 // find a bridge between vertices that connects hole with an outer ring and and link it
 function eliminateHole(hole, outerNode) {
-    console.log("eliminateHole", hole, outerNode);
+    console.log("eliminateHole", hole.i, outerNode.i);
     outerNode = findHoleBridge(hole, outerNode);
     if (outerNode) {
         var b = splitPolygon(outerNode, hole);
@@ -429,9 +421,10 @@ function eliminateHole(hole, outerNode) {
     }
 }
 
-// David Eberly"s algorithm for finding a bridge between hole and outer polygon
+// David Eberly"s algorithm for finding a bridge between hole and outer
+// polygon
 function findHoleBridge(hole, outerNode) {
-    console.log("findholebridge", hole, outerNode);
+    console.log("findholebridge", hole.i, outerNode.i);
     var p = outerNode,
         hx = hole.x,
         hy = hole.y,
@@ -457,6 +450,8 @@ function findHoleBridge(hole, outerNode) {
         p = p.next;
     } while (p !== outerNode);
 
+	console.log("fhb p",p.i,"hx",hx,"hy",hy,"qx",qx,"m",m.i);
+
     if (!m) return null;
 
     if (hx === qx) return m.prev; // hole touches outer segment; pick lower endpoint
@@ -475,8 +470,31 @@ function findHoleBridge(hole, outerNode) {
 
 
     while (p !== stop) {
+
         var x1 = hy < my ? hx : qx;
         var x2 = hy < my ? qx : hx;
+
+		if (hole.i==2780) {
+			console.log("fhb lp pi m tanmin",p.i,m.i,tanMin);
+            console.log("fhb pit ",pointInTriangle(
+                x1,
+                hy,
+                mx,
+                my,
+                x2,
+                hy,
+                p.x,
+                p.y));
+            console.log("fhb piti",
+                x1,
+                hy,
+                mx,
+                my,
+                x2,
+                hy,
+                p.x,
+                p.y);
+		}
 
         if (
             (hx >= p.x) &&
@@ -493,6 +511,9 @@ function findHoleBridge(hole, outerNode) {
                 p.y)) {
 
             tan = Math.abs(hy - p.y) / (hx - p.x); // tangential
+			if (hole.i==2780) {
+				console.log("fhb lp li", locallyInside(p,hole) );
+			}
             if ((tan < tanMin || (tan === tanMin && p.x > m.x)) &&
                 locallyInside(p, hole)) {
                 m = p;
@@ -502,6 +523,10 @@ function findHoleBridge(hole, outerNode) {
 
         p = p.next;
     }
+
+	console.log("fhb al p",p.i,"hx",hx,"hy",hy,"qx",qx,"m",m.i);
+	console.log("fhb stop",stop.i,"mx",mx,"my",my,"tanMin",tanMin,"tan",tan);
+	console.log("find hole bridge return - end");
 
     return m;
 }
@@ -698,7 +723,7 @@ function middleInside(a, b) {
 // link two polygon vertices with a bridge; if the vertices belong to the same ring, it splits polygon into two;
 // if one belongs to the outer ring and another to a hole, it merges it into a single ring
 function splitPolygon(a, b) {
-    console.log("splitPolygon", a, b);
+    console.log("splitPolygon", a.i, b.i);
     var a2 = new Node(a.i, a.x, a.y),
         b2 = new Node(b.i, b.x, b.y),
         an = a.next,
@@ -721,7 +746,7 @@ function splitPolygon(a, b) {
 
 // create a node and optionally link it with previous one (in a circular doubly linked list)
 function insertNode(i, x, y, last) {
-    //	console.log("insertNode",i,x,y,last);
+    if (i==190) console.log("insertNode",i,x,y,last.i);
     var p = new Node(i, x, y);
 
     if (!last) {

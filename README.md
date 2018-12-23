@@ -1,21 +1,21 @@
 ## Earcutr
 
-Warning: This is a work in progress, not 100% equivalent to earcut.js 
-yet, it needs some speed improvement, however only one test fails as of 
-this writing.
-
 Polygon triangulation library, translated into Rust computer language from
 the original Earcut project from MapBox. https://github.com/mapbox/earcut
 
-![image showing an outline of a building, with triangles inside of it](viz/circle.png "circle, earcut")
+![image showing an outline of a circle with a hole inside of it, with triangles inside of it](viz/circle.png "circle, earcut")
 
 #### Usage
 
 ```rust
-var triangles = earcut([10,0, 0,50, 60,60, 70,10]);
+extern crate earcutr;
+var triangles = earcutr::earcut([10,0, 0,50, 60,60, 70,10],[],2);
+println!("{:?}",triangles);  // [1, 0, 3, 3, 2, 1]
 ```
 
-Signature: `earcut(vertices[, holes, dimensions = 2])`.
+Signature: 
+
+`earcut(vertices:Vec<f64>, hole_indices:Vec<usize>, dimensions:usize)`.
 
 * `vertices` is a flat array of vertex coordinates like `[x0,y0, x1,y1, x2,y2, ...]`.
 * `holes` is an array of hole _indices_ if any
@@ -26,15 +26,16 @@ Each group of three vertex indices in the resulting array forms a triangle.
 
 ```rust
 // triangulating a polygon with a hole
-earcut([0,0, 100,0, 100,100, 0,100,  20,20, 80,20, 80,80, 20,80], [4]);
+earcutr::earcut([0,0, 100,0, 100,100, 0,100,  20,20, 80,20, 80,80, 20,80], [4]);
 // [3,0,4, 5,4,0, 3,4,7, 5,0,1, 2,3,7, 6,5,1, 2,7,6, 6,1,2]
 
 // triangulating a polygon with 3d coords
-earcut([10,0,1, 0,50,2, 60,60,3, 70,10,4], null, 3);
+earcutr::earcut([10,0,1, 0,50,2, 60,60,3, 70,10,4], null, 3);
 // [1,0,3, 3,2,1]
 ```
 
-If you pass a single vertex as a hole, Earcut treats it as a Steiner point.
+If you pass a single vertex as a hole, Earcut treats it as a Steiner point. 
+See the 'steiner' test under tests/fixtures for an example.
 
 If your input is a multi-dimensional array (e.g. [GeoJSON Polygon](http://geojson.org/geojson-spec.html#polygon)),
 you can convert it to the format expected by Earcut with `earcut.flatten`:
@@ -53,9 +54,9 @@ After getting a triangulation, you can verify its correctness with
 let deviation = earcutr.deviation(&data.vertices, &data.holes, data.dimensions, &triangles);
 ```
 
-Returns the relative difference between the total area of triangles and 
-the area of the input polygon. `0` means the triangulation is fully 
-correct.
+Deviation returns the relative difference between the total area of 
+triangles and the area of the input polygon. `0` means the triangulation 
+is fully correct.
 
 #### How it works: The algorithm
 
@@ -78,15 +79,14 @@ For example a rectangle could be given in GeoJSON format like so:
 This has a single contour, or ring, with four points. The way
 the points are listed, it looks 'counter-clockwise' or 'anti-clockwise'
 on the page. This is the 'winding' and signifies that it is an 'outer'
-ring, or 'body' of the shape.
-
+ring, or 'body' of the shape. 
     _______
     |     |
     |     |
     |     |
     |_____|
  
-A square with a triangle shaped hole in the middle would be as follows
+Now let's add a hole to the square.: 
 
     [ 
       [ [0,0],[7,0],[7,4],[0,4] ],   
@@ -94,8 +94,8 @@ A square with a triangle shaped hole in the middle would be as follows
     ]
 
 This has two contours (rings), the first with four points, the second 
-with three points. The second has 'clockwise' winding, signifying it is
-a 'hole'.
+with three points. The second has 'clockwise' winding, signifying it is 
+a 'hole'. 
 
     _______
     |     |
@@ -109,16 +109,28 @@ After 'flattening', we end up with a single array:
     holeindexes: [ 8 ]
     dimensions: 2
 
-Notice we can still interpret the data as a sequence of points,
-and by looking at 'hole indexes' we can figure out where the first contour
-ends and the next begins. If we had two holes, there'd be two holeindexes.
+The program will interpret this sequence of data into two separate "rings",
+the outside ring and the 'hole'. The rings are stored using a circular
+doubly-linked list. 
+
+The program then "removes" the hole, by essentially adding a "cut" between
+the hole and the polygon, so that there is only a single "ring" cycle.
+
+         _______
+         |     |
+         |  /| |
+    cut> |_/_| |
+         |_____|
+
+Then, an "ear cutting" algorithm is applied, although it is enhanced as
+described in the links above.
 
 Data examples are included under tests/fixtures in json files.
 
-#### Why another triangulation library?
+#### Tradeoffs
 
-This is for speed, simplicity, small size, and to make a port of earcut.js
-to Rust.
+This triangulator is built for speed, simplicity, small size, and as a test
+to see if it could be ported from javascript to Rust.
 
 If you want to get correct triangulation even on very bad data with lots of self-intersections
 and earcutr is not precise enough, take a look at [libtess.js](https://github.com/brendankenny/libtess.js).
@@ -133,9 +145,10 @@ Yes. [A. Beinges's "Too Many Lists"](https://cglab.ca/~abeinges/blah/too-many-li
 
 This code, instead, implements a Circular Doubly Linked List entirely on 
 top of a Rust Vector, so that there is no unsafe code, and no reference 
-cycles. This does not even use Rc, Box, Arc, etc. The pointers in normal 
+cycles. This does not use Rc, Box, Arc, etc. The pointers in normal 
 Linked List Node code have been replaced by integers which index into a 
-single Vector of Nodes.
+single Vector of Nodes. This vector is called 'll' and is created inside
+"earcut".
 
 #### Install
 
@@ -155,5 +168,6 @@ firefox viz.html       # view in your favorite web browser (circa 2018)
 
 #### Ports to other languages
 
-- https://github.com/mapbox/earcut (Original javascript, earcutr is a port)
-- [mapbox/earcut.hpp](https://github.com/mapbox/earcut.hpp) (C++11)
+- [mapbox/earcut](https://github.com/mapbox/earcut) the Original javascript
+- [mapbox/earcut.hpp](https://github.com/mapbox/earcut.hpp) C++11
+

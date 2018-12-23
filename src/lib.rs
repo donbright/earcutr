@@ -125,20 +125,29 @@ struct LL {
 // https://stackoverflow.com/questions/1908492/unsigned-integer-in-javascript
 fn horsh( mut h:u32, n:u32 ) -> u32 {
      let highorder = h & 0xf8000000  ;  // extract high-order 5 bits from h
-//	println!("horsha {} {}",h,n);
                                    // 0xf8000000 is the hexadecimal representat$
                                    //   for the 32-bit number with the first fi$
                                    //   bits = 1 and the other bits = 0   
      h = h << 5                   ; // shift h left by 5 bits
-//	println!("horshb {} {}",h,n);
      h = h ^ (highorder >> 27)   ;  // move the highorder 5 bits to the low-ord$
-//	println!("horshc {} {}",h,n);
                                    //   end and XOR into h
      h = h ^ n                  ;  // XOR h and ki
-//	println!("horshd {} {}",h,n);
     return h;
 }
 
+
+        fn pn(a: usize) -> String {
+			match a {
+				0x777A91CC => String::from("NULL"),
+                _ => a.to_string()
+            }
+        }
+        fn pb(a: bool) -> String {
+			match a {
+				true => String::from("x"),
+				false => String::from(" ")
+			}
+        }
 
 impl LL {
     fn cycles_report(&self) -> String {
@@ -147,8 +156,6 @@ impl LL {
         }
         let mut markv: Vec<usize> = Vec::new();
         markv.resize(self.nodes.len(), NULL);
-        println!("uhm{}", markv.len());
-        println!("uhm{}", self.nodes.len());
         let mut cycler;;
         for i in 0..markv.len() {
             if self.freelist.contains(&i) {
@@ -158,10 +165,12 @@ impl LL {
                 let mut p = i;
                 let end = node!(self, p).prev_idx;
                 markv[p] = cycler;
+				let mut count = 0;
                 loop {
                     p = node!(self, p).next_idx;
                     markv[p] = cycler;
-                    if p == end {
+					count += 1;
+                    if p == end || count > self.nodes.len() {
                         break;
                     }
                 } // loop
@@ -184,20 +193,6 @@ impl LL {
         }
     }
     fn dump(&self) -> String {
-        fn pn(a: usize) -> String {
-            if a == NULL {
-                return String::from("NULL");
-            } else {
-                return a.to_string();
-            }
-        }
-        fn pb(a: bool) -> String {
-            if a == true {
-                return String::from("tr");
-            } else {
-                return String::from("fl");
-            }
-        }
         let mut s = format!("LL, #nodes: {}", self.nodes.len());
         s.push_str(&format!(
             " #used: {}\n",
@@ -242,27 +237,13 @@ impl LL {
 		state = horsh( state, n.i  as u32);
 	    idx = next!(self,idx).idx;
 		count +=1 ;
-	    if idx==endidx { break; }
+	    if idx==endidx || count > self.nodes.len() { break; }
         }
         s.push_str(&format!(" count:{} horsh: {}",count,state));
         return s;
 	}
 
     fn dump_cycle(&self,start:usize) -> String {
-        fn pn(a: usize) -> String {
-            if a == NULL {
-                return String::from("NULL");
-            } else {
-                return a.to_string();
-            }
-        }
-        fn pb(a: bool) -> String {
-            if a == true {
-                return String::from("tr");
-            } else {
-                return String::from("fl");
-            }
-        }
         let mut s = format!("LL, #nodes: {}", self.nodes.len());
         s.push_str(&format!(
             " #used: {}\n",
@@ -300,27 +281,29 @@ impl LL {
             ));
 	    idx = next!(self,idx).idx;
 		count +=1 ;
-	    if idx==endidx { break; }
+	    if idx==endidx || count > self.nodes.len() { break; }
         }
-        s.push_str(&format!("dump end, horsh: {}",state));
+        s.push_str(&format!("dump end, horshcount:{} horsh:{}",count, state));
         return s;
     }
-    fn insert_node(&mut self, i: usize, x: f64, y: f64, new_head: bool) {
-        dlog!(9, "insert_node {} {} {} {}", i, x, y, new_head);
-        let ll = self;
-        let ls = ll.nodes.len();
-        let mut p = Node::new(i, x, y, ls);
-        if new_head || ls == 0 {
-            p.next_idx = ls;
-            p.prev_idx = ls;
+    fn insert_node(&mut self, i: usize, x: f64, y: f64, last: NodeIdx)->NodeIdx {
+        dlog!(9, "insert_node {} {} {} {}", i, x, y, last);
+		if i==190 { 
+	        dlog!(4, "insert_node {} {} {} {}", i, x, y, last);
+		}
+        let mut p = Node::new(i, x, y, self.nodes.len());
+        if last == NULL {
+            p.next_idx = p.idx;
+            p.prev_idx = p.idx;
         } else {
-            p.next_idx = ll.nodes[ls - 1].next_idx;
-            p.prev_idx = ls - 1;
-            let z = ll.nodes[ls - 1].next_idx;
-            ll.nodes[z].prev_idx = ls;
-            ll.nodes[ls - 1].next_idx = ls;
+            p.next_idx = node!(self,last).next_idx;
+            p.prev_idx = last;
+			let lastnextidx = node!(self,last).next_idx;
+			node!(self,lastnextidx).prev_idx = p.idx;
+			node!(self,last).next_idx = p.idx;
         }
-        ll.nodes.push(p.clone());
+        self.nodes.push(p.clone());
+		return p.idx;
     }
     fn cycle_len(&self, p: NodeIdx) -> usize {
         if p >= self.nodes.len() {
@@ -345,10 +328,6 @@ impl LL {
         if p == NULL {
             return;
         }
-        if self.freelist.contains(&p) {
-            return;
-        }
-        self.freelist.push(p);
 
         let nx = node!(self, p).next_idx;
         let pr = node!(self, p).prev_idx;
@@ -363,6 +342,12 @@ impl LL {
         if nxz != NULL {
             node!(self, nxz).prevz_idx = prz;
         }
+
+        if self.freelist.contains(&p) {
+            return;
+        }
+        self.freelist.push(p);
+
     }
     fn new() -> LL {
         LL {
@@ -403,12 +388,6 @@ fn eliminate_holes(
     let mut queue: Vec<Node> = Vec::new();
     let hlen = hole_indices.len();
     for i in 0..hlen {
-        dlog!(
-            4,
-            "fn eliminate_holes,ll++ begin holei:{} cyclen:{}",
-            i,
-            ll.cycle_len(outer_node)
-        );
         let start = hole_indices[i] * dim;
         let end = if i < (hlen - 1) {
             hole_indices[i + 1] * dim
@@ -421,26 +400,16 @@ fn eliminate_holes(
         }
         let leftmostidx = get_leftmost(ll, list);
         queue.push(node!(ll, leftmostidx).clone());
-        dlog!(
-            4,
-            "fn eliminate_holes,ll++   end holei:{} cyclen:{}",
-            i,
-            ll.cycle_len(outer_node)
-        );
     }
 
     queue.sort_by(compare_x);
-
-    for qi in queue.clone() {
-        dlog!(4, "queue aftsrt: {} {} {} {}", qi.idx, qi.i, qi.x, qi.y);
-    }
 
     // process holes from left to right
     for i in 0..queue.len() {
         dlog!(
             4,
             "eliminating hole begin {} of {}, outernode.i:{} cyclelen:{} horsh:{}",
-            i,
+            i+1,
             queue.len(),
             node!(ll, outer_node).i,
             ll.cycle_len(outer_node),
@@ -451,7 +420,7 @@ fn eliminate_holes(
         dlog!(
             4,
             "eliminating hole end   {} of {}, outernode.i:{} cyclelen:{} horsh:{}",
-            i,
+            i+1,
             queue.len(),
             node!(ll, outer_node).i,
             ll.cycle_len(outer_node),
@@ -533,6 +502,7 @@ fn earcut_linked(
             triangles.push(ll.nodes[ear].i / dim);
             triangles.push(ll.nodes[next].i / dim);
 
+			//dlog!(4,"{}",ll.dump());
             dlog!(
                 4,
                 "earcutlinked beg remove_node ear.i {} cyclen {}",
@@ -955,25 +925,17 @@ fn linked_list_add_contour(
     if start > data.len() || end > data.len() {
         return NULL;
     }
+	let mut lastidx = NULL;
     if clockwise == (signed_area(&data, start, end, dim) > 0.0) {
         for i in (start..end).step_by(dim) {
-            let mut newhead = false;
-            if i == start {
-                newhead = true;
-            }
-            ll.insert_node(i, data[i], data[i + 1], newhead);
+            lastidx = ll.insert_node(i, data[i], data[i + 1], lastidx);
         }
     } else {
         for i in (start..=(end - dim)).rev().step_by(dim) {
-            let mut newhead = false;
-            if i == end - dim {
-                newhead = true;
-            }
-            ll.insert_node(i, data[i], data[i + 1], newhead);
+            lastidx = ll.insert_node(i, data[i], data[i + 1], lastidx);
         }
     }
 
-    let mut lastidx = ll.nodes.len() - 1;
     if equals(&node!(ll, lastidx), &next!(ll, lastidx)) {
         dlog!(
             9,
@@ -1131,7 +1093,6 @@ pub fn earcut(data: &Vec<f64>, hole_indices: &Vec<usize>, ndim: usize) -> Vec<us
         invsize = calc_invsize(minx, miny, maxx, maxy);
     }
 
-	println!("{}",ll.dump_cycle(node!(ll,outer_node).i));
 
     // so basically, for data len < 80*dim, minx,miny are 0
     earcut_linked(
@@ -1322,7 +1283,6 @@ fn eliminate_hole(ll: &mut LL, hole: NodeIdx, outer_node: NodeIdx) {
         node!(ll, hole).i,
         node!(ll, outer_node).i
     );
-    dlog!(5, "{}", ll.dump());
     let test_node = find_hole_bridge(ll, &node!(ll, hole), outer_node);
     if test_node != NULL {
         let b = split_polygon(ll, test_node, hole);
@@ -1354,16 +1314,12 @@ fn find_hole_bridge(ll: &LL, hole: &Node, outer_node: NodeIdx) -> NodeIdx {
 
     loop {
         let (px, py) = (node!(ll, p).x, node!(ll, p).y);
-        //     dlog!(9,"find hole bridge loop m:{} p:{} px:{} py:{} hx:{} hy:{} qx:{}",m,p,px,py,hx,hy,qx);
         if (hy <= py) && (hy >= next!(ll, p).y) && (next!(ll, p).y != py) {
-            //			dlog!(4,"fhb first inner");
             let x = px + (hy - py) * (next!(ll, p).x - px) / (next!(ll, p).y - py);
 
             if (x <= hx) && (x > qx) {
-                //				dlog!(4,"fhb first inner - step");
                 qx = x;
                 if x == hx {
-                    //					dlog!(4,"fhb first inner - step step");
                     if hy == py {
                         return p;
                     }
@@ -1384,6 +1340,11 @@ fn find_hole_bridge(ll: &LL, hole: &Node, outer_node: NodeIdx) -> NodeIdx {
         }
     }
 
+    if hole.i==2780  {
+		dlog!(4,"fhb p {} hx {} hy {} qx {} m {}",
+		node!(ll,p).i,hx,hy,qx,node!(ll,m).i);
+	}
+
     if m == NULL {
         return NULL;
     }
@@ -1399,37 +1360,58 @@ fn find_hole_bridge(ll: &LL, hole: &Node, outer_node: NodeIdx) -> NodeIdx {
     // angle with the ray as connection point
 
     let stop = m;
-    let mut mx = node!(ll, m).x;
-    let mut my = node!(ll, m).y;
+	let mx = node!(ll,m).x;
+	let my = node!(ll,m).y;
     let mut tan_min = max_coord_value();
-    let mut tan;
+//    let mut tan;
+    let mut tan = 0.0;
 
     p = next!(ll, m).idx;
 
     while p != stop {
+
         let (px, py) = (node!(ll, p).x, node!(ll, p).y);
         let x1 = if hy < my { hx } else { qx };
         let x2 = if hy < my { qx } else { hx };
+/*        if hole.i==2780 {
+            dlog!(4,"fhb lp pi m tanmin {} {} {}",node!(ll,p).i,node!(ll,m).i,tan_min);
+            dlog!(4,"fhb pit {}", point_in_triangle(x1, hy, mx, my, x2, hy, px, py));
+            dlog!(4,"fhb piti {} {} {} {} {} {} {} {}", 
+							x1, hy, mx, my, x2, hy, px, py);
+            if node!(ll,p).i==178 && 190==node!(ll,m).i {
+				dlog!(4,"{}",ll.dump());
+			}
+        }
+*/
         if (hx >= px)
             && (px >= mx)
             && (hx != px)
             && point_in_triangle(x1, hy, mx, my, x2, hy, px, py)
         {
             tan = (hy - py).abs() / (hx - px); // tangential
+            if hole.i==2780 {
+                dlog!(4,"fhb lp li {}", locally_inside(ll,&node!(ll,p),&hole) );
+            }
 
             if ((tan < tan_min) || ((tan == tan_min) && (px > node!(ll, m).x)))
                 && locally_inside(ll, &node!(ll, p), &hole)
             {
                 m = p;
-                mx = node!(ll, m).x;
-                my = node!(ll, m).y;
                 tan_min = tan;
             }
 	}
         p = next!(ll, p).idx;
     }
 
-    return m;
+/*	dlog!(4,"fhb al p {} hx {} hy {} qx {} m {}",
+	node!(ll,p).i,hx,hy,qx,node!(ll,m).i);
+
+    dlog!(4,"fhb stop {} mx {} my {} tanMin {} tan {} ",
+node!(ll,stop).i,mx,my,tan_min,tan);
+
+	dlog!(4,"find_hole_bridge return - end");
+  */
+	return m;
 }
 
 // get the leftmost node in the list, given a starting node
@@ -2201,7 +2183,6 @@ mod tests {
         let hole = Node::new(0, 0.2, 0.55, NULL);
         assert!(8 == find_hole_bridge(&ll, &hole, 0));
         let hole = Node::new(0, 0.2, 0.6, NULL);
-        println!("{}", find_hole_bridge(&ll, &hole, 0));
         let hole = Node::new(0, 0.2, 0.65, NULL);
         assert!(6 == find_hole_bridge(&ll, &hole, 0));
         let hole = Node::new(0, 0.2, 0.7, NULL);
@@ -2209,7 +2190,6 @@ mod tests {
         let hole = Node::new(0, 0.2, 0.75, NULL);
         assert!(6 == find_hole_bridge(&ll, &hole, 0));
         let hole = Node::new(0, 0.2, 0.8, NULL);
-        println!("{}", find_hole_bridge(&ll, &hole, 0));
         let hole = Node::new(0, 0.2, 0.85, NULL);
         assert!(4 == find_hole_bridge(&ll, &hole, 0));
         let hole = Node::new(0, 0.2, 0.9, NULL);
@@ -2422,6 +2402,5 @@ mod tests {
         ];
         let (coords, hole_indices, dim) = flatten(&data);
         let triangles = earcut(&coords, &hole_indices, dim);
-        println!("{:?}", triangles);
     }
 }
