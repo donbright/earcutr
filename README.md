@@ -129,17 +129,57 @@ Data examples are included under tests/fixtures in json files.
 
 #### Tradeoffs
 
-This triangulator is built for speed, simplicity, small size, and as a test
-to see if it could be ported from javascript to Rust.
+This triangulator is built for simplicity, small size, and as a test to 
+see if it could be ported from javascript to Rust. In several places,
+the decision has been made to use fewer lines of code rather than the
+technically fastest code, with the idea that the compiler can do a good enough
+job of optimizing.
+
+For example in javascript, consider the function 'leftmost()' which 
+finds the left most point in a cycle of points:
+
+    // find the leftmost node of a polygon ring
+    function getLeftmost(start) {
+        var p = start,
+            leftmost = start;
+        do {
+            if (p.x < leftmost.x) leftmost = p;
+            p = p.next;
+        } while (p !== start);
+        return leftmost;
+    }
+
+Now consider the same in Rust, after implementation of a node iterator
+and a few helper functions that are re-used many times in other places:
+
+fn get_leftmost(ll: &LinkedLists, start: NodeIdx) -> NodeIdx {
+        ll.iter(start).min_by(|n,m| compare_x(n,m)).unwrap().idx
+}
+
+In fact this is so short, and it's only used in one other place, so
+this function was eliminated altogether. Along with the easy unit-testing
+in Rust which allowed this type of modification without much worry about
+breaking the algorithm.
+
+If you want down-to-the-metal code, there is a C++ port of the 
+javascript code, see the link at the end of this README.
 
 If you want to get correct triangulation even on very bad data with lots of self-intersections
 and earcutr is not precise enough, take a look at [libtess.js](https://github.com/brendankenny/libtess.js).
 
-Or pre-process the data with [Angus J's 
-Clipper](http://angusj.com/delphi/clipper.php) which uses Vatti's 
-Algorithm to clean up 'polygon soup' type of data.
+You may also want to consider pre-processing the polygon data with 
+[Angus J's Clipper](http://angusj.com/delphi/clipper.php) which uses 
+Vatti's Algorithm to clean up 'polygon soup' type of data.
 
-#### But these algorithms are based on linked lists, which are hard in Rust?
+#### Coordinate number type
+
+The coordinate type in this code is 64-bit floating point. Note that 
+32-bit floating point will fail the tests because the test data files 
+have numbers that cannot be held with full precision in 32 bits, like 
+the base 10 number 537629.886026485, which gets rounded to 537629.875 
+during conversion from base 10 to 32-bit base 2.
+
+#### These algorithms are based on linked lists, is that difficult in Rust?
 
 Yes. [A. Beinges's "Too Many Lists"](https://cglab.ca/~abeinges/blah/too-many-lists/book/) shows how to do Linked Lists in Rust.
 

@@ -18,7 +18,6 @@ function earcut(data, holeIndices, dim) {
     var minX, minY, maxX, maxY, x, y, invSize;
 
     if (hasHoles) outerNode = eliminateHoles(data, holeIndices, outerNode, dim);
-	console.log("earcutdump",data[190],data[191]);
 
     // if the shape is not too simple, we"ll use z-order curve hash later; calculate polygon bbox
     if (data.length > 80 * dim) {
@@ -746,7 +745,6 @@ function splitPolygon(a, b) {
 
 // create a node and optionally link it with previous one (in a circular doubly linked list)
 function insertNode(i, x, y, last) {
-    if (i==190) console.log("insertNode",i,x,y,last.i);
     var p = new Node(i, x, y);
 
     if (!last) {
