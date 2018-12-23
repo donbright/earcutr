@@ -108,12 +108,12 @@ fn pb(a: bool) -> String {
 }
 
 impl LinkedLists {
-	fn iter(&self,startidx:NodeIdx)->NodeIterator {
-		return NodeIterator::new(self,startidx,startidx);
-	}
-	fn iter_range(&self,r:std::ops::Range<NodeIdx>)->NodeIterator {
-		return NodeIterator::new(self,r.start,r.end);
-	}
+    fn iter(&self, startidx: NodeIdx) -> NodeIterator {
+        return NodeIterator::new(self, startidx, startidx);
+    }
+    fn iter_range(&self, r: std::ops::Range<NodeIdx>) -> NodeIterator {
+        return NodeIterator::new(self, r.start, r.end);
+    }
     fn cycles_report(&self) -> String {
         if self.nodes.len() == 0 {
             return format!("[]");
@@ -177,7 +177,7 @@ impl LinkedLists {
                 n.y,
                 pn(n.prevz_idx),
                 pn(n.nextz_idx),
-				pz(n.z),
+                pz(n.z),
                 pb(n.steiner),
                 pb(self.freelist.contains(&n.idx)),
                 self.cycle_len(n.idx),
@@ -370,11 +370,11 @@ fn eliminate_holes(
         if list == node!(ll, list).next_idx {
             ll.nodes[list].steiner = true;
         }
-		let leftmost = ll.iter(list).min_by(|n,m| compare_x(n,m)).unwrap();
+        let leftmost = ll.iter(list).min_by(|n, m| compare_x(n, m)).unwrap();
         queue.push(leftmost.clone());
     }
 
-    queue.sort_by(|n,m| compare_x(n,m));
+    queue.sort_by(|n, m| compare_x(n, m));
 
     // process holes from left to right
     for i in 0..queue.len() {
@@ -388,10 +388,22 @@ fn eliminate_holes(
 // minx, miny and invsize are later used to transform coords
 // into integers for z-order calculation
 fn calc_invsize(minx: f64, miny: f64, maxx: f64, maxy: f64) -> f64 {
-	let (dx,dy)=(maxx-minx,maxy-miny);
+    let (dx, dy) = (maxx - minx, maxy - miny);
     match dx > dy {
-        true => if dx==0.0 { 0.0 } else { 1.0 / dx },
-        false => if dy==0.0 { 0.0 } else { 1.0 / dy }
+        true => {
+            if dx == 0.0 {
+                0.0
+            } else {
+                1.0 / dx
+            }
+        }
+        false => {
+            if dy == 0.0 {
+                0.0
+            } else {
+                1.0 / dy
+            }
+        }
     }
 }
 
@@ -496,7 +508,7 @@ fn index_curve(ll: &mut LinkedLists, start: NodeIdx, minx: f64, miny: f64, invsi
         if p == start {
             break;
         }
-	};
+    }
     let pzi = prevz!(ll, p).idx;
     node!(ll, pzi).nextz_idx = NULL;
     node!(ll, p).prevz_idx = NULL;
@@ -574,17 +586,15 @@ fn sort_linked(ll: &mut LinkedLists, inlist: NodeIdx) {
 
 // check whether a polygon node forms a valid ear with adjacent nodes
 fn is_ear(ll: &LinkedLists, ear: usize) -> bool {
-    let (a,b,c) = (&prev!(ll, ear),&node!(ll, ear),&next!(ll, ear));
+    let (a, b, c) = (&prev!(ll, ear), &node!(ll, ear), &next!(ll, ear));
     if area(a, b, c) >= 0.0 {
         dlog!(8, " reflex, can't be an ear");
         return false;
     }
-	dlog!(8,"make sure there's not any points inside potential ear");
-	!ll.iter_range(c.next_idx..a.idx).any(|n| 
-//		point_in_triangle(a.x, a.y, b.x, b.y, c.x, c.y, n.x, n.y)
-		point_in_triangle(a, b, c, n)
-        && (area(&prev!(ll,n.idx), n, &next!(ll,n.idx)) >= 0.0)
-	)
+    dlog!(8, "make sure there's not any points inside potential ear");
+    !ll.iter_range(c.next_idx..a.idx).any(|n| {
+        point_in_triangle(a, b, c, n) && (area(&prev!(ll, n.idx), n, &next!(ll, n.idx)) >= 0.0)
+    })
 }
 
 fn is_ear_hashed(ll: &mut LinkedLists, ear: usize, minx: f64, miny: f64, invsize: f64) -> bool {
@@ -596,13 +606,13 @@ fn is_ear_hashed(ll: &mut LinkedLists, ear: usize, minx: f64, miny: f64, invsize
         miny,
         invsize
     );
-/*    let a = prev!(ll, ear).prev_idx;
+    /*    let a = prev!(ll, ear).prev_idx;
     let b = node!(ll, ear);
     let c = node!(ll, ear).next_idx;*/
     let a = &prev!(ll, ear);
     let b = &node!(ll, ear);
     let c = &next!(ll, ear);
-/*    let (ax, ay, bx, by, cx, cy) = (
+    /*    let (ax, ay, bx, by, cx, cy) = (
         node!(ll, a).x,
         node!(ll, a).y,
         node!(ll, b).x,
@@ -616,10 +626,26 @@ fn is_ear_hashed(ll: &mut LinkedLists, ear: usize, minx: f64, miny: f64, invsize
     }
 
     // triangle bbox
-	let min_tx = ll.iter_range((a.idx)..(c.idx)).min_by(|n,m| compare_x(n,m)).unwrap().x;
-	let max_tx = ll.iter_range((a.idx)..(c.idx)).max_by(|n,m| compare_x(m,n)).unwrap().x;
-	let min_ty = ll.iter_range((a.idx)..(c.idx)).min_by(|n,m| compare_y(n,m)).unwrap().y;
-	let max_ty = ll.iter_range((a.idx)..(c.idx)).max_by(|n,m| compare_y(m,n)).unwrap().y;
+    let min_tx = ll
+        .iter_range((a.idx)..(c.idx))
+        .min_by(|n, m| compare_x(n, m))
+        .unwrap()
+        .x;
+    let max_tx = ll
+        .iter_range((a.idx)..(c.idx))
+        .max_by(|n, m| compare_x(m, n))
+        .unwrap()
+        .x;
+    let min_ty = ll
+        .iter_range((a.idx)..(c.idx))
+        .min_by(|n, m| compare_y(n, m))
+        .unwrap()
+        .y;
+    let max_ty = ll
+        .iter_range((a.idx)..(c.idx))
+        .max_by(|n, m| compare_y(m, n))
+        .unwrap()
+        .y;
 
     // z-order range for the current triangle bbox;
     let min_z = zorder(min_tx, min_ty, minx, miny, invsize);
@@ -632,7 +658,7 @@ fn is_ear_hashed(ll: &mut LinkedLists, ear: usize, minx: f64, miny: f64, invsize
         dlog!(18, "look for points inside the triangle in both directions");
         if (p != node!(ll, ear).prev_idx)
             && (p != node!(ll, ear).next_idx)
-            && point_in_triangle(&a,&b,&c,&node!(ll, p))
+            && point_in_triangle(&a, &b, &c, &node!(ll, p))
             && area(&prev!(ll, p), &node!(ll, p), &next!(ll, p)) >= 0.0
         {
             return false;
@@ -641,7 +667,7 @@ fn is_ear_hashed(ll: &mut LinkedLists, ear: usize, minx: f64, miny: f64, invsize
 
         if (n != node!(ll, ear).prev_idx)
             && (n != node!(ll, ear).next_idx)
-            && point_in_triangle(&a,&b,&c,&node!(ll, n))
+            && point_in_triangle(&a, &b, &c, &node!(ll, n))
             && area(&prev!(ll, n), &node!(ll, n), &next!(ll, n)) >= 0.0
         {
             return false;
@@ -653,7 +679,7 @@ fn is_ear_hashed(ll: &mut LinkedLists, ear: usize, minx: f64, miny: f64, invsize
         dlog!(18, "look for remaining points in decreasing z-order");
         if (p != node!(ll, ear).prev_idx)
             && (p != node!(ll, ear).next_idx)
-            && point_in_triangle(&a,&b,&c, &node!(ll, p))
+            && point_in_triangle(&a, &b, &c, &node!(ll, p))
             && area(&prev!(ll, p), &node!(ll, p), &next!(ll, p)) >= 0.0
         {
             return false;
@@ -666,7 +692,7 @@ fn is_ear_hashed(ll: &mut LinkedLists, ear: usize, minx: f64, miny: f64, invsize
         dlog!(18, "look for remaining points in increasing z-order");
         if (n != node!(ll, ear).prev_idx)
             && (n != node!(ll, ear).next_idx)
-            && point_in_triangle(&a,&b,&c,&node!(ll,n))
+            && point_in_triangle(&a, &b, &c, &node!(ll, n))
             && area(&prev!(ll, n), &node!(ll, n), &next!(ll, n)) >= 0.0
         {
             return false;
@@ -789,7 +815,7 @@ fn zorder(xf: f64, yf: f64, minx: f64, miny: f64, invsize: f64) -> u32 {
 }
 
 // check if a point lies within a convex triangle
-fn point_in_triangle(a:&Node,b:&Node,c:&Node,p:&Node)->bool {
+fn point_in_triangle(a: &Node, b: &Node, c: &Node, p: &Node) -> bool {
     ((c.x - p.x) * (a.y - p.y) - (a.x - p.x) * (c.y - p.y) >= 0.0)
         && ((a.x - p.x) * (b.y - p.y) - (b.x - p.x) * (a.y - p.y) >= 0.0)
         && ((b.x - p.x) * (c.y - p.y) - (c.x - p.x) * (b.y - p.y) >= 0.0)
@@ -822,10 +848,28 @@ pub fn earcut(data: &Vec<f64>, hole_indices: &Vec<usize>, dim: usize) -> Vec<usi
     // if the shape is not too simple, we'll use z-order curve hash
     // later; calculate polygon bbox
     if data.len() > 80 * dim {
-		let maxx = data[0..outer_len].iter().step_by(dim).cloned().fold(std::f64::MAX, f64::max);
-		minx = data[0..outer_len].iter().step_by(dim).cloned().fold(std::f64::MIN, f64::min);
-		let maxy = data[0..outer_len].iter().skip(1).step_by(dim).cloned().fold(std::f64::MAX, f64::max);
-		miny = data[0..outer_len].iter().skip(1).step_by(dim).cloned().fold(std::f64::MIN, f64::min);
+        let maxx = data[0..outer_len]
+            .iter()
+            .step_by(dim)
+            .cloned()
+            .fold(std::f64::MAX, f64::max);
+        minx = data[0..outer_len]
+            .iter()
+            .step_by(dim)
+            .cloned()
+            .fold(std::f64::MIN, f64::min);
+        let maxy = data[0..outer_len]
+            .iter()
+            .skip(1)
+            .step_by(dim)
+            .cloned()
+            .fold(std::f64::MAX, f64::max);
+        miny = data[0..outer_len]
+            .iter()
+            .skip(1)
+            .step_by(dim)
+            .cloned()
+            .fold(std::f64::MIN, f64::min);
         invsize = calc_invsize(minx, miny, maxx, maxy);
     }
 
@@ -989,29 +1033,29 @@ fn find_hole_bridge(ll: &LinkedLists, hole: &Node, outer_node: NodeIdx) -> NodeI
     // point to the left; segment's endpoint with lesser x will be
     // potential connection point
 
-	let mut retval = NULL;
-	ll.iter(outer_node).for_each(|p| {
-		let next = &next!(ll,p.idx);
-        if hole.y <= p.y && hole.y >= next.y && next.y != p.y {
-            let x = p.x + (hole.y - p.y) * (next.x - p.x) / (next.y - p.y);
-            if (x <= hole.x) && (x > qx) {
-                qx = x;
-                if x == hole.x {
-                    if hole.y == p.y {
-                        retval = p.idx;
-                    } else if hole.y == next.y {
-                        retval = next.idx
-                    };
+    let mut retval = NULL;
+    ll.iter(outer_node)
+        .filter(|n| hole.y <= n.y && hole.y >= next!(ll, n.idx).y && next!(ll, n.idx).y != n.y)
+        .for_each(|p| {
+            let next = &next!(ll, p.idx);
+            let vx = p.x + (hole.y - p.y) * (next.x - p.x) / (next.y - p.y);
+            if (vx <= hole.x) && (vx > qx) {
+                qx = vx;
+                retval = match hole {
+                    Node { x, y, .. } if *x == vx && *y == p.y => p.idx,
+                    Node { x, y, .. } if *x == vx && *y == next.y => next.idx,
+                    _ => retval,
+                };
+                m = match p.x < next.x {
+                    true => p.idx,
+                    false => next.idx,
                 }
-				m = match p.x < next.x {
-					true => p.idx, 
-					false=> next.idx 
-				}
             }
-        }
-    });
+        });
 
-	if retval != NULL { return retval; }
+    if retval != NULL {
+        return retval;
+    }
 
     if m == NULL {
         return NULL;
@@ -1027,34 +1071,30 @@ fn find_hole_bridge(ll: &LinkedLists, hole: &Node, outer_node: NodeIdx) -> NodeI
     // a valid connection; otherwise choose the point of the minimum
     // angle with the ray as connection point
 
-    let stop = m;
     let mut tan_min = std::f64::INFINITY;
-    let mut tan;
-    let mut p = next!(ll, m).idx;
-	let mo = Node::new(0,node!(ll,m).x,node!(ll,m).y,0);
-	let mut he = Node::new(0,0.0,hole.y,0);
-	let mut hf = Node::new(0,0.0,hole.y,0);
+    let mut tan = 0.0;
+    let mo = node!(ll, m).clone();
+    let qhole = &Node::new(0, qx, hole.y, 0);
+    let (he, hf) = match hole.y < mo.y {
+  		true=>(hole, qhole),
+		false=>(qhole, hole),
+    };
 
-    while p != stop {
-        let (px, py) = (node!(ll, p).x, node!(ll, p).y);
-		he.x = if hole.y < mo.y { hole.x } else { qx };
-		hf.x = if hole.y < mo.y { qx } else { hole.x };
-        if (hole.x >= px)
-            && (px >= mo.x)
-            && (hole.x != px)
-            && point_in_triangle(&he, &mo, &hf, &node!(ll,p))
-        {
-            tan = (hole.y - py).abs() / (hole.x - px); // tangential
+    ll.iter(mo.next_idx)
+        .filter(|n| {
+//            hole.x >= n.x && n.x >= mo.x && hole.x != n.x && point_in_triangle(&he, &mo, &hf, &n)
+            hole.x > n.x && n.x >= mo.x && point_in_triangle(&he, &mo, &hf, &n)
+        })
+        .for_each(|p| {
+            tan = (hole.y - p.y).abs() / (hole.x - p.x); // tangential
 
-            if ((tan < tan_min) || ((tan == tan_min) && (px > node!(ll, m).x)))
-                && locally_inside(ll, &node!(ll, p), &hole)
+            if (tan < tan_min || (tan == tan_min && p.x > node!(ll, m).x))
+                && locally_inside(ll, &p, &hole)
             {
-                m = p;
+                m = p.idx;
                 tan_min = tan;
             }
-        }
-        p = next!(ll, p).idx;
-    }
+        });
 
     return m;
 }
@@ -1324,57 +1364,74 @@ pub fn flatten(data: &Vec<Vec<Vec<f64>>>) -> (Vec<f64>, Vec<usize>, usize) {
 
 //http://www.howtobuildsoftware.com/index.php/how-do/zK2/iterator-rust-how-to-implement-iterator-and-intoiterator-for-a-simple-struct
 struct NodeIterator<'a> {
-	start: NodeIdx,
-	cur: NodeIdx,
-	end: NodeIdx,
-	count: usize,
-	ll: &'a LinkedLists,
+    start: NodeIdx,
+    cur: NodeIdx,
+    end: NodeIdx,
+    count: usize,
+    ll: &'a LinkedLists,
 }
 
 impl<'a> NodeIterator<'a> {
-	fn new(ll:&LinkedLists,start:usize,end:usize) -> NodeIterator {
-		NodeIterator{ start:start, cur:start, end:end, count:0, ll } 
-	}
+    fn new(ll: &LinkedLists, start: usize, end: usize) -> NodeIterator {
+        NodeIterator {
+            start: start,
+            cur: start,
+            end: end,
+            count: 0,
+            ll,
+        }
+    }
 }
 
 impl<'a> Iterator for NodeIterator<'a> {
-	type Item = &'a Node;
-	fn next(&mut self) -> Option<&'a Node> {
-		let ll = self.ll;
-//		println!("next cnt{} cur{} str{}",self.count,self.cur,self.start);
-		let result = if self.count == 0 { Some(&node!(ll,self.cur)) } // 1-node list
-		else if self.cur == std::usize::MAX { None } // cur is NULL
-		else if self.cur == self.end { None } // we reached end of list
-		else { Some(&node!(ll,self.cur)) }; // normal iteration
-		self.count += 1;
-		self.cur = node!(ll,self.cur).next_idx;
-		result
-	}
+    type Item = &'a Node;
+    fn next(&mut self) -> Option<&'a Node> {
+        let ll = self.ll;
+        //		println!("next cnt{} cur{} str{}",self.count,self.cur,self.start);
+        let result = if self.count == 0 {
+            Some(&node!(ll, self.cur))
+        }
+        // 1-node list
+        else if self.cur == std::usize::MAX {
+            None
+        }
+        // cur is NULL
+        else if self.cur == self.end {
+            None
+        }
+        // we reached end of list
+        else {
+            Some(&node!(ll, self.cur))
+        }; // normal iteration
+        self.count += 1;
+        self.cur = node!(ll, self.cur).next_idx;
+        result
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
-	fn test_iter() {
+    fn test_iter() {
         let data = vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.0];
         let (mut ll, _) = linked_list(&data, 0, data.len(), 2, true);
         let r = filter_points(&mut ll, 0, 3);
-		let leftmost = ll.iter(0).min_by(|n,m| compare_x(n,m)).unwrap();
-		assert!(leftmost.x==0.0);
-		assert!(ll.iter(r).any(|n| n.x>0.5));
-		assert!(ll.iter(r).any(|n| n.x<0.5));
-		assert!(ll.iter(r).any(|n| n.idx<3));
-		assert!(!ll.iter(r).any(|n| n.idx>13));
-		println!("{}",ll.dump());
-		let mut i = ll.iter(0);
-		assert!(i.next().unwrap().idx==0);
-		assert!(i.next().unwrap().idx==1);
-		assert!(i.next().unwrap().idx==2);
-		assert!(i.next().unwrap().idx==3);
-		let blanknode = Node::new(0,0.,0.,0);
-		assert!(equals(&blanknode,i.next().unwrap_or(&blanknode)));
-	}
+        let leftmost = ll.iter(0).min_by(|n, m| compare_x(n, m)).unwrap();
+        assert!(leftmost.x == 0.0);
+        assert!(ll.iter(r).any(|n| n.x > 0.5));
+        assert!(ll.iter(r).any(|n| n.x < 0.5));
+        assert!(ll.iter(r).any(|n| n.idx < 3));
+        assert!(!ll.iter(r).any(|n| n.idx > 13));
+        println!("{}", ll.dump());
+        let mut i = ll.iter(0);
+        assert!(i.next().unwrap().idx == 0);
+        assert!(i.next().unwrap().idx == 1);
+        assert!(i.next().unwrap().idx == 2);
+        assert!(i.next().unwrap().idx == 3);
+        let blanknode = Node::new(0, 0., 0., 0);
+        assert!(equals(&blanknode, i.next().unwrap_or(&blanknode)));
+    }
 
     #[test]
     fn test_linked_list() {
@@ -1393,8 +1450,8 @@ mod tests {
 
     #[test]
     fn test_point_in_triangle() {
-//        assert!(point_in_triangle(0.0, 0.0, 2.0, 0.0, 2.0, 2.0, 1.0, 0.1));
-//        assert!(!point_in_triangle(0.0, 0.0, 2.0, 0.0, 2.0, 2.0, -1.0, 0.1));
+        //        assert!(point_in_triangle(0.0, 0.0, 2.0, 0.0, 2.0, 2.0, 1.0, 0.1));
+        //        assert!(!point_in_triangle(0.0, 0.0, 2.0, 0.0, 2.0, 2.0, -1.0, 0.1));
     }
 
     #[test]
@@ -1452,7 +1509,7 @@ mod tests {
         let (ll, _) = linked_list(&body, 0, body.len(), dims, true);
         assert!(area(&ll.nodes[0], &ll.nodes[1], &ll.nodes[2]) == -12.0);
         let body2 = vec![4.0, 0.0, 0.0, 0.0, 4.0, 3.0]; // clockwise
-        let (ll2,_) = linked_list(&body2, 0, body2.len(), dims, true);
+        let (ll2, _) = linked_list(&body2, 0, body2.len(), dims, true);
         // creation apparently modifies all winding to ccw
         assert!(area(&ll2.nodes[0], &ll2.nodes[1], &ll2.nodes[2]) == -12.0);
     }
@@ -1818,11 +1875,10 @@ mod tests {
         let body = vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.0];
         let (mut ll, _) = linked_list(&body, 0, body.len(), dims, true);
         let hole_indices: Vec<usize> = Vec::new();
-        assert!(3==eliminate_holes(&mut ll, &body, &hole_indices, 3, 2));
-        assert!(2==eliminate_holes(&mut ll, &body, &hole_indices, 2, 2));
-        assert!(1==eliminate_holes(&mut ll, &body, &hole_indices, 1, 2));
-        assert!(0==eliminate_holes(&mut ll, &body, &hole_indices, 0, 2));
-
+        assert!(3 == eliminate_holes(&mut ll, &body, &hole_indices, 3, 2));
+        assert!(2 == eliminate_holes(&mut ll, &body, &hole_indices, 2, 2));
+        assert!(1 == eliminate_holes(&mut ll, &body, &hole_indices, 1, 2));
+        assert!(0 == eliminate_holes(&mut ll, &body, &hole_indices, 0, 2));
     }
 
     #[test]
@@ -1924,8 +1980,7 @@ mod tests {
         ];
         let (coords, hole_indices, dim) = flatten(&data);
         let triangles = earcut(&coords, &hole_indices, dim);
-		assert!(triangles.len()>0);
+        assert!(triangles.len() > 0);
     }
-
 
 }
