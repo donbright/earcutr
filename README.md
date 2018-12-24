@@ -80,11 +80,12 @@ This has a single contour, or ring, with four points. The way
 the points are listed, it looks 'counter-clockwise' or 'anti-clockwise'
 on the page. This is the 'winding' and signifies that it is an 'outer'
 ring, or 'body' of the shape. 
-      _______
-      |     |
-      |     |
-      |     |
-      |_____|
+
+     _______
+     |     |
+     |     |
+     |     |
+     |_____|
  
 Now let's add a hole to the square.: 
 
