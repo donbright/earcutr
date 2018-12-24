@@ -29,16 +29,16 @@ impl Node {
 
 #[derive(Clone)]
 struct Node {
-    i: usize,        // vertex index in f64s array
-    x: f64,          // vertex x f64s
-    y: f64,          // vertex y f64s
-    prev_idx: usize, // previous vertex nodes in a polygon ring
-    next_idx: usize,
+    i: usize,         // vertex index into the main 1-dimension array of f64s
+    x: f64,           // vertex x coordinate
+    y: f64,           // vertex y coordinate
+    prev_idx: usize,  // previous vertex nodes in a polygon ring
+    next_idx: usize,  // next vertex node in the polygon ring
     z: u32,           // z-order curve value
-    prevz_idx: usize, // previous and next nodes in z-order
-    nextz_idx: usize,
-    steiner: bool, // indicates whether this is a steiner point
-    idx: usize,    // index within vector that holds all nodes
+    prevz_idx: usize, // previous  nodes in z-order
+    nextz_idx: usize, // next node in the polygon ring, in z-order
+    steiner: bool,    // indicates whether this is a steiner point
+    idx: usize,       // index of this node in LinkedLists.nodes
 }
 
 macro_rules! dlog {

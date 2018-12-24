@@ -17,7 +17,7 @@ println!("{:?}",triangles);  // [1, 0, 3, 3, 2, 1]
 
 Signature: 
 
-`earcut(vertices:Vec<f64>, hole_indices:&vec<usize>, dimensions:usize)`.
+`earcut(vertices:&vec<f64>, hole_indices:&vec<usize>, dimensions:usize)`.
 
 * `vertices` is a flat array of vertex coordinates like `[x0,y0, x1,y1, x2,y2, ...]`.
 * `holes` is an array of hole _indices_ if any
@@ -28,26 +28,30 @@ Each group of three vertex indices in the resulting array forms a triangle.
 
 ```rust
 // triangulating a polygon with a hole
-earcutr::earcut(&vec![0,0, 100,0, 100,100, 0,100,  20,20, 80,20, 80,80, 20,80], &vec![4],2);
+earcutr::earcut(&vec![0.,0., 100.,0., 100.,100., 0.,100.,  20.,20., 80.,20., 80.,80., 20.,80.], &vec![4],2);
 // [3,0,4, 5,4,0, 3,4,7, 5,0,1, 2,3,7, 6,5,1, 2,7,6, 6,1,2]
 
 // triangulating a polygon with 3d coords
-earcutr::earcut(&vec![10,0,1, 0,50,2, 60,60,3, 70,10,4], &vec![], 3);
+earcutr::earcut(&vec![10.,0.,1., 0.,50.,2., 60.,60.,3., 70.,10.,4.], &vec![], 3);
 // [1,0,3, 3,2,1]
 ```
 
 If you pass a single vertex as a hole, Earcut treats it as a Steiner point. 
 See the 'steiner' test under tests/fixtures for an example.
 
-If your input is a multi-dimensional array (e.g. [GeoJSON Polygon](http://geojson.org/geojson-spec.html#polygon)),
-you can convert it to the format expected by Earcut with `earcut.flatten`:
+If your input is a multi-dimensional array you can convert it to the 
+format expected by Earcut with `earcut.flatten`. For example:
 
-```rust
+```rust 
 let v = vec![vec![vec![0.0,0.0],vec![1.0,0.0],vec![1.0,1.0],vec![0.0,1.0]]];
 let holes:Vec<usize> = vec![];
-let data = earcutr.flatten( v );
+let data = earcutr.flatten( v ); 
 let triangles = earcut(&data.vertices, &data.holes, data.dimensions);
-```
+``` 
+
+The multi-dimensional format is what [GeoJSON 
+Polygon](http://geojson.org/geojson-spec.html#polygon)) uses, there is 
+example code under tests/integration_test.rs on how to parse JSON data.
 
 After getting a triangulation, you can verify its correctness with 
 `earcutr.deviation`:
