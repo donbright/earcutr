@@ -171,18 +171,37 @@ Linked List Node code have been replaced by integers which index into a
 single Vector of Nodes. This vector is called 'll' and is created inside
 "earcut".
 
-#### Install
+#### Tests, Benchmarks
 
 You can copy the earcutr.rs file into your own project and use it.
 
 To download the full library, with tests,
 
 ```bash
-git clone github.com/donbright/earcutr
-cd earcutr
-cargo test             # generates test output under viz/testoutput
-cd viz                 # to visualize results, look under viz
-firefox viz.html       # anf view in your favorite web browser (circa 2018)
+$ git clone github.com/donbright/earcutr
+$ cd earcutr
+$ cargo test             # generates test output under viz/testoutput
+$ cd viz                 # to visualize results, look under viz
+$ firefox viz.html       # anf view in your favorite web browser (circa 2018)
+```
+
+Benchmarking (the measurement of code running speed) is a bit flaky 
+since benchmarking is not stable in Rust, as of this writing. So 
+benchmarking has been kept separate from ordinary tests, under the 
+'benches' directory. Benchmarking can done with a special 'bencher' Rust 
+crate from https://docs.rs/bencher/0.1.5/bencher/, run 'cargo bench'
+should automatically download it.
+
+A basic benchmark of code under 'benches' can be run as follows:
+
+```bash
+$ cargo bench
+...
+     Running target/release/deps/example-420f1427e108178b 
+
+running 2 tests
+test basic_hole          ... bench:  90,285,759 ns/iter (+/- 53,462,257)
+test basic_quadrilateral ... bench:  32,638,897 ns/iter (+/- 17,170,055)
 ```
 
 #### Ports to other languages
