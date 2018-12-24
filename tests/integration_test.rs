@@ -60,11 +60,11 @@ fn mkoutput(filename: &str, tris: &Vec<usize>, data: &Vec<Vec<Vec<f64>>>, pass: 
         &filename,
         tris.len(),rpt
     );
-    // this filename + variablename also in integration_test.rs and viz.html
-    let outfile = "viz/testoutput.js";
+    let outfile = &format!("viz/testoutput/{}.js",filename);
     let f = OpenOptions::new()
+		.write(true)
         .create(true)
-        .append(true)
+        .truncate(true)
         .open(outfile)
         .unwrap();
 	try!(writeln!(&f, r###"testOutput["{}"]=[];"###,filename));
@@ -83,7 +83,8 @@ fn mkoutput(filename: &str, tris: &Vec<usize>, data: &Vec<Vec<Vec<f64>>>, pass: 
 // verify if triangles cover the same area as the shape itself
 fn area_test(filename: &str, expected_num_tris: usize, expected_deviation: f64) -> bool
 {
-    let visualize = std::env::args().any(|x| x == "--test-threads=1");
+//    let visualize = std::env::args().any(|x| x == "--test-threads=1");
+	let visualize = true;
     dlog!(4,"visualization: {}", visualize);
 	let mut actual_num_tris = 0;
 	let mut actual_deviation = 0.0;

@@ -1,7 +1,9 @@
 ## Earcutr
 
-Polygon triangulation library, translated into Rust computer language from
-the original Earcut project from MapBox. https://github.com/mapbox/earcut
+This is a Polygon triangulation library, translated into Rust computer 
+language from the original Earcut project from MapBox. See 
+https://github.com/mapbox/earcut and https://www.mapbox.com for more 
+information about the original javascript code.
 
 ![image showing an outline of a circle with a hole inside of it, with triangles inside of it](viz/circle.png "circle, earcut")
 
@@ -136,8 +138,9 @@ see if it could be ported from javascript to Rust.
 If you want down-to-the-metal code, there is a C++ port of the 
 javascript code, see the link at the end of this README.
 
-If you want to get correct triangulation even on very bad data with lots of self-intersections
-and earcutr is not precise enough, take a look at [libtess.js](https://github.com/brendankenny/libtess.js).
+If you want to get correct triangulation even on very bad data with lots 
+of self-intersections and earcutr is not precise enough, take a look at 
+[libtess.js](https://github.com/brendankenny/libtess.js).
 
 You may also want to consider pre-processing the polygon data with 
 [Angus J's Clipper](http://angusj.com/delphi/clipper.php) which uses 
@@ -171,11 +174,9 @@ To download the full library, with tests,
 ```bash
 git clone github.com/donbright/earcutr
 cd earcutr
-cargo test                      # normal build and test report
-cargo test -- --test-threads=1  # test-threads=1 will create visualization data
-ls viz/testoutput.json # if visualization worked, this file will be created
-cd viz                 # vizualisation code lives here, it's javascript/html
-firefox viz.html       # view in your favorite web browser (circa 2018)
+cargo test             # generates test output under viz/testoutput
+cd viz                 # to visualize results, look under viz
+firefox viz.html       # anf view in your favorite web browser (circa 2018)
 ```
 
 #### Ports to other languages

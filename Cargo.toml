@@ -2,7 +2,6 @@
 name = "earcutr"
 version = "0.1.0"
 authors = ["don bright <hmbright@fastmail.com>"]
-build = "tests/build.rs"
 
 [dependencies]
 serde = "1.0.80"
