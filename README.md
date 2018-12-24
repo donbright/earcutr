@@ -30,7 +30,7 @@ earcutr::earcut([0,0, 100,0, 100,100, 0,100,  20,20, 80,20, 80,80, 20,80], [4]);
 // [3,0,4, 5,4,0, 3,4,7, 5,0,1, 2,3,7, 6,5,1, 2,7,6, 6,1,2]
 
 // triangulating a polygon with 3d coords
-earcutr::earcut([10,0,1, 0,50,2, 60,60,3, 70,10,4], null, 3);
+earcutr::earcut([10,0,1, 0,50,2, 60,60,3, 70,10,4], [], 3);
 // [1,0,3, 3,2,1]
 ```
 
@@ -80,11 +80,11 @@ This has a single contour, or ring, with four points. The way
 the points are listed, it looks 'counter-clockwise' or 'anti-clockwise'
 on the page. This is the 'winding' and signifies that it is an 'outer'
 ring, or 'body' of the shape. 
-    _______
-    |     |
-    |     |
-    |     |
-    |_____|
+      _______
+      |     |
+      |     |
+      |     |
+      |_____|
  
 Now let's add a hole to the square.: 
 
@@ -130,36 +130,7 @@ Data examples are included under tests/fixtures in json files.
 #### Tradeoffs
 
 This triangulator is built for simplicity, small size, and as a test to 
-see if it could be ported from javascript to Rust. In several places,
-the decision has been made to use fewer lines of code rather than the
-technically fastest code, with the idea that the compiler can do a good enough
-job of optimizing.
-
-For example in javascript, consider the function 'leftmost()' which 
-finds the left most point in a cycle of points:
-
-    // find the leftmost node of a polygon ring
-    function getLeftmost(start) {
-        var p = start,
-            leftmost = start;
-        do {
-            if (p.x < leftmost.x) leftmost = p;
-            p = p.next;
-        } while (p !== start);
-        return leftmost;
-    }
-
-Now consider the same in Rust, after implementation of a node iterator
-and a few helper functions that are re-used many times in other places:
-
-fn get_leftmost(ll: &LinkedLists, start: NodeIdx) -> NodeIdx {
-        ll.iter(start).min_by(|n,m| compare_x(n,m)).unwrap().idx
-}
-
-In fact this is so short, and it's only used in one other place, so
-this function was eliminated altogether. Along with the easy unit-testing
-in Rust which allowed this type of modification without much worry about
-breaking the algorithm.
+see if it could be ported from javascript to Rust.
 
 If you want down-to-the-metal code, there is a C++ port of the 
 javascript code, see the link at the end of this README.
