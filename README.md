@@ -133,6 +133,8 @@ Then, an "ear cutting" algorithm is applied, although it is enhanced as
 described in the links above.
 
 Data examples are included under tests/fixtures in json files.
+Visualization of test results is generated under viz/testoutput and can
+be viewed in a web browser by opening viz/viz.html
 
 #### Tradeoffs
 
