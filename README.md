@@ -38,20 +38,6 @@ earcutr::earcut(&vec![10.,0.,1., 0.,50.,2., 60.,60.,3., 70.,10.,4.], &vec![], 3)
 If you pass a single vertex as a hole, Earcut treats it as a Steiner point. 
 See the 'steiner' test under tests/fixtures for an example.
 
-If your input is a multi-dimensional array you can convert it to the 
-format expected by Earcut with `earcut.flatten`. For example:
-
-```rust 
-let v = vec![vec![vec![0.0,0.0],vec![1.0,0.0],vec![1.0,1.0],vec![0.0,1.0]]];
-let holes:Vec<usize> = vec![];
-let data = earcutr.flatten( v ); 
-let triangles = earcut(&data.vertices, &data.holes, data.dimensions);
-``` 
-
-The multi-dimensional format is what [GeoJSON 
-Polygon](http://geojson.org/geojson-spec.html#polygon)) uses, there is 
-example code under tests/integration_test.rs on how to parse JSON data.
-
 After getting a triangulation, you can verify its correctness with 
 `earcutr.deviation`:
 
@@ -62,6 +48,26 @@ let deviation = earcutr.deviation(&data.vertices, &data.holes, data.dimensions, 
 Deviation returns the relative difference between the total area of 
 triangles and the area of the input polygon. `0` means the triangulation 
 is fully correct.
+
+#### Flattened vs multi-dimensional data
+
+If your input is a multi-dimensional array you can convert it to the 
+format expected by Earcut with `earcut.flatten`. For example:
+
+```rust 
+let v = vec![
+vec![
+  vec![0.,0.],vec![1.,0.],vec![1.,1.],vec![0.,1.], // outer ring
+  vec![vec![1.,1.],vec![3.,1.],vec![3.,3.]]        // hole ring
+];
+let data = earcutr.flatten( &v, &holes ); 
+let triangles = earcut(&data.vertices, &data.holes, data.dimensions);
+``` 
+
+The [GeoJSON Polygon](http://geojson.org/geojson-spec.html#polygon) format uses 
+multi-dimensional data in a text based JSON format. There is example code under 
+tests/integration_test.rs on how to parse JSON data. The test/fixtures test
+files are all multi-dimensional .json files.
 
 #### How it works: The algorithm
 
@@ -161,7 +167,8 @@ during conversion from base 10 to 32-bit base 2.
 
 #### These algorithms are based on linked lists, is that difficult in Rust?
 
-Yes. [A. Beinges's "Too Many Lists"](https://cglab.ca/~abeinges/blah/too-many-lists/book/) shows how to do Linked Lists in Rust.
+Yes. [A. Beinges's "Too Many Lists"](https://cglab.ca/~abeinges/blah/too-many-lists/book/) 
+shows how to do Linked Lists in Rust.
 
 This code, instead, implements a Circular Doubly Linked List entirely on 
 top of a Rust Vector, so that there is no unsafe code, and no reference 
@@ -172,16 +179,16 @@ single Vector of Nodes. This vector is called 'll' and is created inside
 
 #### Install
 
-You can copy the earcutr.rs file into your own project and use it.
+You can copy the src/lib.rs file into your own project and use it.
 
-To download the full library, with tests,
+To download this full project, with tests and visualization code:
 
 ```bash
 git clone github.com/donbright/earcutr
 cd earcutr
 cargo test             # generates test output under viz/testoutput
 cd viz                 # to visualize results, look under viz
-firefox viz.html       # anf view in your favorite web browser (circa 2018)
+firefox viz.html       # and view in your favorite web browser (circa 2018)
 ```
 
 #### Ports to other languages
