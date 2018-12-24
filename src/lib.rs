@@ -77,14 +77,10 @@ struct LinkedLists {
 // https://www.cs.hmc.edu/~geoff/classes/hmc.cs070.200101/homework10/hashfuncs.html
 // https://stackoverflow.com/questions/1908492/unsigned-integer-in-javascript
 fn horsh(mut h: u32, n: u32) -> u32 {
-    let highorder = h & 0xf8000000; // extract high-order 5 bits from h
-                                    // 0xf8000000 is the hexadecimal representat$
-                                    //   for the 32-bit number with the first fi$
-                                    //   bits = 1 and the other bits = 0
-    h = h << 5; // shift h left by 5 bits
-    h = h ^ (highorder >> 27); // move the highorder 5 bits to the low-ord$
-                               //   end and XOR into h
-    h = h ^ n; // XOR h and ki
+    let highorder = h & 0xf8000000;
+    h = h << 5;
+    h = h ^ (highorder >> 27);
+    h = h ^ n;
     return h;
 }
 
@@ -114,47 +110,20 @@ impl LinkedLists {
     fn iter_range(&self, r: std::ops::Range<NodeIdx>) -> NodeIterator {
         return NodeIterator::new(self, r.start, r.end);
     }
-    fn cycles_report(&self) -> String {
-        if self.nodes.len() == 0 {
-            return format!("[]");
+    fn insert_node(&mut self, i: usize, x: f64, y: f64, last: NodeIdx) -> NodeIdx {
+        let mut p = Node::new(i, x, y, self.nodes.len());
+        if last == NULL {
+            p.next_idx = p.idx;
+            p.prev_idx = p.idx;
+        } else {
+            p.next_idx = node!(self, last).next_idx;
+            p.prev_idx = last;
+            let lastnextidx = node!(self, last).next_idx;
+            node!(self, lastnextidx).prev_idx = p.idx;
+            node!(self, last).next_idx = p.idx;
         }
-        let mut markv: Vec<usize> = Vec::new();
-        markv.resize(self.nodes.len(), NULL);
-        let mut cycler;;
-        for i in 0..markv.len() {
-            if self.freelist.contains(&i) {
-                markv[i] = NULL;
-            } else if markv[i] == NULL {
-                cycler = i;
-                let mut p = i;
-                let end = node!(self, p).prev_idx;
-                markv[p] = cycler;
-                let mut count = 0;
-                loop {
-                    p = node!(self, p).next_idx;
-                    markv[p] = cycler;
-                    count += 1;
-                    if p == end || count > self.nodes.len() {
-                        break;
-                    }
-                } // loop
-            } // if markvi == 0
-        } //for markv
-        format!("cycles report:\n{:?}", markv)
-    }
-
-    fn cycle_dump(&self, p: NodeIdx) -> String {
-        let mut s = format!("cycle from {}, ", p);
-        s.push_str(&format!(" len {}, idxs:", self.cycle_len(p)));
-        let mut i = p;
-        let end = i;
-        loop {
-            s.push_str(&format!("{} ", node!(self, i).idx));
-            i = node!(self, i).next_idx;
-            if i == end {
-                break s;
-            }
-        }
+        self.nodes.push(p.clone());
+        return p.idx;
     }
     fn dump(&self) -> String {
         let mut s = format!("ll, #nodes: {}", self.nodes.len());
@@ -184,95 +153,6 @@ impl LinkedLists {
             ));
         }
         return s;
-    }
-
-    // find the node with 'i' of starti, horsh it
-    fn horsh(&self, starti: usize) -> String {
-        let mut s = format!("ll horsh: ");
-        let mut startidx: usize = 0;
-        for n in self.nodes.iter() {
-            if n.i == starti {
-                startidx = n.idx;
-            };
-        }
-        let endidx = startidx;
-        let mut idx = startidx;
-        let mut count = 0;
-        let mut state = 0u32;
-        loop {
-            let n = self.nodes[idx].clone();
-            state = horsh(state, n.i as u32);
-            idx = next!(self, idx).idx;
-            count += 1;
-            if idx == endidx || count > self.nodes.len() {
-                break;
-            }
-        }
-        s.push_str(&format!(" count:{} horsh: {}", count, state));
-        return s;
-    }
-
-    fn dump_cycle(&self, start: usize) -> String {
-        let mut s = format!("ll, #nodes: {}", self.nodes.len());
-        s.push_str(&format!(
-            " #used: {}\n",
-            self.nodes.len() - self.freelist.len()
-        ));
-        s.push_str(&format!(
-            " {:>3} {:>3} {:>3} {:>4} {:>4} {:>8.3} {:>8.3} {:>4} {:>4} {:>2} {:>2} {:>2}\n",
-            "#", "vi", "i", "p", "n", "x", "y", "pz", "nz", "st", "fr", "cyl"
-        ));
-        let mut startidx: usize = 0;
-        for n in self.nodes.iter() {
-            if n.i == start {
-                startidx = n.idx;
-            };
-        }
-        let endidx = startidx;
-        let mut idx = startidx;
-        let mut count = 0;
-        let mut state = 0u32;
-        loop {
-            let n = self.nodes[idx].clone();
-            state = horsh(state, n.i as u32);
-            s.push_str(&format!(
-                " {:>3} {:>3} {:>3} {:>4} {:>4} {:>8.3} {:>8.3} {:>4} {:>4} {:>2} {:>2} {:>2}\n",
-                count,
-                n.idx,
-                n.i,
-                prev!(self, n.idx).i,
-                next!(self, n.idx).i,
-                n.x,
-                n.y,
-                pn(n.prevz_idx),
-                pn(n.nextz_idx),
-                pb(n.steiner),
-                pb(self.freelist.contains(&n.idx)),
-                self.cycle_len(n.idx),
-            ));
-            idx = next!(self, idx).idx;
-            count += 1;
-            if idx == endidx || count > self.nodes.len() {
-                break;
-            }
-        }
-        s.push_str(&format!("dump end, horshcount:{} horsh:{}", count, state));
-        return s;
-    }
-    fn insert_node(&mut self, i: usize, x: f64, y: f64, last: NodeIdx) -> NodeIdx {
-        let mut p = Node::new(i, x, y, self.nodes.len());
-        if last == NULL {
-            p.next_idx = p.idx;
-            p.prev_idx = p.idx;
-        } else {
-            p.next_idx = node!(self, last).next_idx;
-            p.prev_idx = last;
-            let lastnextidx = node!(self, last).next_idx;
-            node!(self, lastnextidx).prev_idx = p.idx;
-            node!(self, last).next_idx = p.idx;
-        }
-        self.nodes.push(p.clone());
-        return p.idx;
     }
     fn cycle_len(&self, p: NodeIdx) -> usize {
         if p >= self.nodes.len() {
@@ -326,15 +206,11 @@ impl LinkedLists {
 } // ll
 
 fn compare_x(a: &Node, b: &Node) -> std::cmp::Ordering {
-    let x1 = a.x;
-    let x2 = b.x;
-    return x1.partial_cmp(&x2).unwrap_or(std::cmp::Ordering::Equal);
+    return a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal);
 }
 
 fn compare_y(a: &Node, b: &Node) -> std::cmp::Ordering {
-    let y1 = a.y;
-    let y2 = b.y;
-    return y1.partial_cmp(&y2).unwrap_or(std::cmp::Ordering::Equal);
+    return a.y.partial_cmp(&b.y).unwrap_or(std::cmp::Ordering::Equal);
 }
 
 // link every hole into the outer loop, producing a single-ring polygon
@@ -385,25 +261,14 @@ fn eliminate_holes(
     return outer_node;
 } // elim holes
 
-// minx, miny and invsize are later used to transform coords
-// into integers for z-order calculation
+// invsize is used to transform coords into integers for z-order calculation
 fn calc_invsize(minx: f64, miny: f64, maxx: f64, maxy: f64) -> f64 {
     let (dx, dy) = (maxx - minx, maxy - miny);
-    match dx > dy {
-        true => {
-            if dx == 0.0 {
-                0.0
-            } else {
-                1.0 / dx
-            }
-        }
-        false => {
-            if dy == 0.0 {
-                0.0
-            } else {
-                1.0 / dy
-            }
-        }
+    match (dx > dy, dx == 0.0, dy == 0.0) {
+        (true, true, _) => 0.0,
+        (true, false, _) => 1.0 / dx,
+        (false, _, true) => 0.0,
+        (false, _, false) => 1.0 / dy,
     }
 }
 
@@ -606,20 +471,9 @@ fn is_ear_hashed(ll: &mut LinkedLists, ear: usize, minx: f64, miny: f64, invsize
         miny,
         invsize
     );
-    /*    let a = prev!(ll, ear).prev_idx;
-    let b = node!(ll, ear);
-    let c = node!(ll, ear).next_idx;*/
     let a = &prev!(ll, ear);
     let b = &node!(ll, ear);
     let c = &next!(ll, ear);
-    /*    let (ax, ay, bx, by, cx, cy) = (
-        node!(ll, a).x,
-        node!(ll, a).y,
-        node!(ll, b).x,
-        node!(ll, b).y,
-        node!(ll, c).x,
-        node!(ll, c).y,
-    );*/
     if area(&a, &b, &c) >= 0.0 {
         dlog!(9, "reflex, can't be an ear");
         return false;
@@ -685,7 +539,6 @@ fn is_ear_hashed(ll: &mut LinkedLists, ear: usize, minx: f64, miny: f64, invsize
             return false;
         }
         p = node!(ll, p).prevz_idx;
-        dlog!(19, "{} ", p);
     }
 
     while n != NULL && node!(ll, n).z <= max_z {
@@ -974,6 +827,8 @@ fn split_earcut(
     // look for a valid diagonal that divides the polygon into two
     let mut a = start;
     loop {
+        //	ll.iter( start ).for_each(|an| {
+        //		let mut a = an.idx;
         let mut b = next!(ll, a).next_idx;
         while b != node!(ll, a).prev_idx {
             if node!(ll, a).i != node!(ll, b).i
@@ -1000,6 +855,7 @@ fn split_earcut(
             break;
         }
     }
+    //);
 }
 
 // find a bridge between vertices that connects hole with an outer ring and and link it
@@ -1037,18 +893,21 @@ fn find_hole_bridge(ll: &LinkedLists, hole: &Node, outer_node: NodeIdx) -> NodeI
     ll.iter(outer_node)
         .filter(|n| hole.y <= n.y && hole.y >= next!(ll, n.idx).y && next!(ll, n.idx).y != n.y)
         .for_each(|p| {
-            let next = &next!(ll, p.idx);
-            let vx = p.x + (hole.y - p.y) * (next.x - p.x) / (next.y - p.y);
-            if (vx <= hole.x) && (vx > qx) {
-                qx = vx;
-                retval = match hole {
-                    Node { x, y, .. } if *x == vx && *y == p.y => p.idx,
-                    Node { x, y, .. } if *x == vx && *y == next.y => next.idx,
-                    _ => retval,
-                };
-                m = match p.x < next.x {
-                    true => p.idx,
-                    false => next.idx,
+            if retval == NULL {
+                // fix this.. use some breaking iterator
+                let next = &next!(ll, p.idx);
+                let vx = p.x + (hole.y - p.y) * (next.x - p.x) / (next.y - p.y);
+                if (vx <= hole.x) && (vx > qx) {
+                    qx = vx;
+                    retval = match hole {
+                        Node { x, y, .. } if *x == vx && *y == p.y => p.idx,
+                        Node { x, y, .. } if *x == vx && *y == next.y => next.idx,
+                        _ => retval,
+                    };
+                    m = match p.x < next.x {
+                        true => p.idx,
+                        false => next.idx,
+                    }
                 }
             }
         });
@@ -1076,15 +935,12 @@ fn find_hole_bridge(ll: &LinkedLists, hole: &Node, outer_node: NodeIdx) -> NodeI
     let mo = node!(ll, m).clone();
     let qhole = &Node::new(0, qx, hole.y, 0);
     let (he, hf) = match hole.y < mo.y {
-  		true=>(hole, qhole),
-		false=>(qhole, hole),
+        true => (hole, qhole),
+        false => (qhole, hole),
     };
 
     ll.iter(mo.next_idx)
-        .filter(|n| {
-//            hole.x >= n.x && n.x >= mo.x && hole.x != n.x && point_in_triangle(&he, &mo, &hf, &n)
-            hole.x > n.x && n.x >= mo.x && point_in_triangle(&he, &mo, &hf, &n)
-        })
+        .filter(|n| hole.x > n.x && n.x >= mo.x && point_in_triangle(&he, &mo, &hf, &n))
         .for_each(|p| {
             tan = (hole.y - p.y).abs() / (hole.x - p.x); // tangential
 
@@ -1137,55 +993,34 @@ fn pseudo_intersects(p1: &Node, q1: &Node, p2: &Node, q2: &Node) -> bool {
 
 // check if a polygon diagonal intersects any polygon segments
 fn intersects_polygon(ll: &LinkedLists, a: &Node, b: &Node) -> bool {
-    let mut p = a.idx;
-    loop {
-        let ta = node!(ll, p).i != a.i;
-        let tb = next!(ll, p).i != a.i;
-        let tc = node!(ll, p).i != b.i;
-        let td = next!(ll, p).i != b.i;
-        let te = pseudo_intersects(&node!(ll, p), &next!(ll, p), a, b);
-        if ta && tb && tc && td && te {
-            return true;
-        }
-        p = node!(ll, p).next_idx;
-        if p == a.idx {
-            break;
-        }
-    }
-    false
+    ll.iter(a.idx).any(|p| {
+        p.i != a.i
+            && next!(ll, p.idx).i != a.i
+            && p.i != b.i
+            && next!(ll, p.idx).i != b.i
+            && pseudo_intersects(&p, &next!(ll, p.idx), a, b)
+    })
 }
 
 // check if a polygon diagonal is locally inside the polygon
 fn locally_inside(ll: &LinkedLists, a: &Node, b: &Node) -> bool {
-    if area(&prev!(ll, a.idx), a, &next!(ll, a.idx)) < 0.0 {
-        return area(a, b, &next!(ll, a.idx)) >= 0.0 && area(a, &prev!(ll, a.idx), b) >= 0.0;
-    } else {
-        return area(a, b, &prev!(ll, a.idx)) < 0.0 || area(a, &next!(ll, a.idx), b) < 0.0;
+    match area(&prev!(ll, a.idx), a, &next!(ll, a.idx)) < 0.0 {
+        true => area(a, b, &next!(ll, a.idx)) >= 0.0 && area(a, &prev!(ll, a.idx), b) >= 0.0,
+        false => area(a, b, &prev!(ll, a.idx)) < 0.0 || area(a, &next!(ll, a.idx), b) < 0.0,
     }
 }
 
 // check if the middle point of a polygon diagonal is inside the polygon
 fn middle_inside(ll: &LinkedLists, a: &Node, b: &Node) -> bool {
-    let mut pi = a.idx;
+    let (mx, my) = ((a.x + b.x) / 2.0, (a.y + b.y) / 2.0);
     let mut inside = false;
-    let px = (a.x + b.x) / 2.0;
-    let py = (a.y + b.y) / 2.0;
-    loop {
-        let p = &node!(ll, pi);
-        let pnext = &next!(ll, pi);
-
-        if ((p.y > py) != (pnext.y > py))
-            && (pnext.y != p.y)
-            && (px < ((pnext.x - p.x) * (py - p.y) / (pnext.y - p.y) + p.x))
-        {
-            inside = !inside;
-        }
-        pi = next!(ll, pi).idx;
-        if pi == a.idx {
-            break;
-        }
-    }
-
+    ll.iter(a.idx)
+        .filter(|p| {
+            (p.y > my) != (next!(ll, p.idx).y > my)
+                && next!(ll, p.idx).y != p.y
+                && (mx < (next!(ll, p.idx).x - p.x) * (my - p.y) / (next!(ll, p.idx).y - p.y) + p.x)
+        })
+        .for_each(|_| inside = !inside);
     return inside;
 }
 
@@ -1387,22 +1222,15 @@ impl<'a> Iterator for NodeIterator<'a> {
     type Item = &'a Node;
     fn next(&mut self) -> Option<&'a Node> {
         let ll = self.ll;
-        //		println!("next cnt{} cur{} str{}",self.count,self.cur,self.start);
         let result = if self.count == 0 {
-            Some(&node!(ll, self.cur))
-        }
-        // 1-node list
-        else if self.cur == std::usize::MAX {
-            None
-        }
-        // cur is NULL
-        else if self.cur == self.end {
-            None
-        }
-        // we reached end of list
-        else {
-            Some(&node!(ll, self.cur))
-        }; // normal iteration
+            Some(&node!(ll, self.cur)) // single-node iterator
+        } else if self.cur == std::usize::MAX {
+            None // NULL node
+        } else if self.cur == self.end {
+            None // end of iteration
+        } else {
+            Some(&node!(ll, self.cur)) // normal iteration
+        };
         self.count += 1;
         self.cur = node!(ll, self.cur).next_idx;
         result
@@ -1410,6 +1238,125 @@ impl<'a> Iterator for NodeIterator<'a> {
 }
 
 #[cfg(test)]
+impl LinkedLists {
+    fn cycles_report(&self) -> String {
+        if self.nodes.len() == 0 {
+            return format!("[]");
+        }
+        let mut markv: Vec<usize> = Vec::new();
+        markv.resize(self.nodes.len(), NULL);
+        let mut cycler;;
+        for i in 0..markv.len() {
+            if self.freelist.contains(&i) {
+                markv[i] = NULL;
+            } else if markv[i] == NULL {
+                cycler = i;
+                let mut p = i;
+                let end = node!(self, p).prev_idx;
+                markv[p] = cycler;
+                let mut count = 0;
+                loop {
+                    p = node!(self, p).next_idx;
+                    markv[p] = cycler;
+                    count += 1;
+                    if p == end || count > self.nodes.len() {
+                        break;
+                    }
+                } // loop
+            } // if markvi == 0
+        } //for markv
+        format!("cycles report:\n{:?}", markv)
+    }
+
+    fn cycle_dump(&self, p: NodeIdx) -> String {
+        let mut s = format!("cycle from {}, ", p);
+        s.push_str(&format!(" len {}, idxs:", self.cycle_len(p)));
+        let mut i = p;
+        let end = i;
+        loop {
+            s.push_str(&format!("{} ", node!(self, i).idx));
+            i = node!(self, i).next_idx;
+            if i == end {
+                break s;
+            }
+        }
+    }
+
+    // find the node with 'i' of starti, horsh it
+    fn horsh(&self, starti: usize) -> String {
+        let mut s = format!("ll horsh: ");
+        let mut startidx: usize = 0;
+        for n in self.nodes.iter() {
+            if n.i == starti {
+                startidx = n.idx;
+            };
+        }
+        let endidx = startidx;
+        let mut idx = startidx;
+        let mut count = 0;
+        let mut state = 0u32;
+        loop {
+            let n = self.nodes[idx].clone();
+            state = horsh(state, n.i as u32);
+            idx = next!(self, idx).idx;
+            count += 1;
+            if idx == endidx || count > self.nodes.len() {
+                break;
+            }
+        }
+        s.push_str(&format!(" count:{} horsh: {}", count, state));
+        return s;
+    }
+
+    fn dump_cycle(&self, start: usize) -> String {
+        let mut s = format!("ll, #nodes: {}", self.nodes.len());
+        s.push_str(&format!(
+            " #used: {}\n",
+            self.nodes.len() - self.freelist.len()
+        ));
+        s.push_str(&format!(
+            " {:>3} {:>3} {:>3} {:>4} {:>4} {:>8.3} {:>8.3} {:>4} {:>4} {:>2} {:>2} {:>2}\n",
+            "#", "vi", "i", "p", "n", "x", "y", "pz", "nz", "st", "fr", "cyl"
+        ));
+        let mut startidx: usize = 0;
+        for n in self.nodes.iter() {
+            if n.i == start {
+                startidx = n.idx;
+            };
+        }
+        let endidx = startidx;
+        let mut idx = startidx;
+        let mut count = 0;
+        let mut state = 0u32;
+        loop {
+            let n = self.nodes[idx].clone();
+            state = horsh(state, n.i as u32);
+            s.push_str(&format!(
+                " {:>3} {:>3} {:>3} {:>4} {:>4} {:>8.3} {:>8.3} {:>4} {:>4} {:>2} {:>2} {:>2}\n",
+                count,
+                n.idx,
+                n.i,
+                prev!(self, n.idx).i,
+                next!(self, n.idx).i,
+                n.x,
+                n.y,
+                pn(n.prevz_idx),
+                pn(n.nextz_idx),
+                pb(n.steiner),
+                pb(self.freelist.contains(&n.idx)),
+                self.cycle_len(n.idx),
+            ));
+            idx = next!(self, idx).idx;
+            count += 1;
+            if idx == endidx || count > self.nodes.len() {
+                break;
+            }
+        }
+        s.push_str(&format!("dump end, horshcount:{} horsh:{}", count, state));
+        return s;
+    }
+}
+
 mod tests {
     use super::*;
     #[test]
@@ -1650,16 +1597,6 @@ mod tests {
             "{}",
             intersects_polygon(&ll, &node!(ll, 2), &node!(ll, 0))
         );
-        /*        dlog!(
-            1,
-            "{}",
-            intersects_polygon(&ll, &node!(ll, 5), &node!(ll, 1))
-        );
-        dlog!(
-            1,
-            "{}",
-            intersects_polygon(&ll, &node!(ll, 1), &node!(ll, 5))
-        );*/
     }
 
     #[test]
