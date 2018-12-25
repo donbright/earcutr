@@ -56,12 +56,11 @@ format expected by Earcut with `earcut.flatten`. For example:
 
 ```rust 
 let v = vec![
-vec![
-  vec![0.,0.],vec![1.,0.],vec![1.,1.],vec![0.,1.], // outer ring
+  vec![vec![0.,0.],vec![1.,0.],vec![1.,1.],vec![0.,1.]], // outer ring
   vec![vec![1.,1.],vec![3.,1.],vec![3.,3.]]        // hole ring
 ];
-let data = earcutr.flatten( &v, &holes ); 
-let triangles = earcut(&data.vertices, &data.holes, data.dimensions);
+let (vertices,holes,dimensions) = earcutr::flatten( &v );
+let triangles = earcutr::earcut(&vertices, &holes, dimensions);
 ``` 
 
 The [GeoJSON Polygon](http://geojson.org/geojson-spec.html#polygon) format uses 
