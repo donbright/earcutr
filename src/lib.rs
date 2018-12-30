@@ -1,5 +1,10 @@
 #![allow(dead_code)]
 
+use std::sync::mpsc::sync_channel;
+use std::sync::mpsc::Receiver;
+use std::sync::mpsc::SyncSender;
+use std::thread;
+
 static NULL: usize = std::usize::MAX;
 static NULL32: u32 = std::u32::MAX;
 static DEBUG: usize = 0;
@@ -49,7 +54,7 @@ macro_rules! dlog {
 
 // Note: only 'node!' works for Left-Hand-Side of assignment.
 macro_rules! node {
-    ($ll:ident,$idx:expr) => {
+    ($ll:expr,$idx:expr) => {
         $ll.nodes[$idx]
     };
 }
@@ -69,9 +74,32 @@ macro_rules! prevz {
     };
 }
 
+struct BoundingBox {
+	minx: f64,
+	miny: f64,
+	maxx: f64,
+	maxy: f64
+}
+impl BoundingBox {
+	fn expand(mut self,n:&Node)->BoundingBox{
+		self.maxx = f64::max(self.maxx,n.x);
+		self.maxy = f64::max(self.maxy,n.y);
+		self.minx = f64::min(self.minx,n.x);
+		self.miny = f64::min(self.miny,n.y);
+		self
+	}
+	fn new(ll:&LinkedLists,r: std::ops::Range<NodeIdx>)->BoundingBox {
+		let p = &node!(ll,r.start);
+		let bb = BoundingBox{maxx:p.x,maxy:p.y,minx:p.x,miny:p.y};
+		ll.iter_range(r).fold(bb, |b,ref mut n| b.expand( &n ))
+	}
+}
+
 struct LinkedLists {
     nodes: Vec<Node>,
     freelist: Vec<NodeIdx>, // removed nodes have their index stored here
+	snd: std::sync::mpsc::SyncSender<u32>,
+	rcv: std::sync::mpsc::Receiver<u32>, 
 }
 
 // https://www.cs.hmc.edu/~geoff/classes/hmc.cs070.200101/homework10/hashfuncs.html
@@ -198,10 +226,14 @@ impl LinkedLists {
         self.freelist.push(p);
     }
     fn new() -> LinkedLists {
+		let (sender, receiver) = sync_channel(1);
         LinkedLists {
             nodes: Vec::new(),
             freelist: Vec::new(),
+			snd: sender,
+			rcv: receiver,
         }
+//fn setz(&mut self
     }
 } // ll
 
@@ -316,13 +348,7 @@ fn earcut_linked(
         prev = node!(ll, ear).prev_idx;
         next = node!(ll, ear).next_idx;
 
-        let test;
-        if invsize > 0.0 {
-            test = is_ear_hashed(ll, ear, minx, miny, invsize);
-        } else {
-            test = is_ear(ll, ear);
-        }
-        if test {
+		if (invsize==0.0 && is_ear(ll,ear)) || (invsize!=0.0 && is_ear_hashed(ll,ear,minx,miny,invsize)) {
             // cut off the triangle
             triangles.push(ll.nodes[prev].i / dim);
             triangles.push(ll.nodes[ear].i / dim);
@@ -362,23 +388,24 @@ fn earcut_linked(
 
 // interlink polygon nodes in z-order
 fn index_curve(ll: &mut LinkedLists, start: NodeIdx, minx: f64, miny: f64, invsize: f64) {
-    let mut p = start;
-    loop {
-        if node!(ll, p).z == NULL32 {
-            node!(ll, p).z = zorder(node!(ll, p).x, node!(ll, p).y, minx, miny, invsize);
+	let mut pi = start;
+	loop {
+        if node!(ll,pi).z == NULL32 {
+            node!(ll,pi).z = zorder(node!(ll,pi).x, node!(ll,pi).y, minx, miny, invsize);
         }
-        node!(ll, p).prevz_idx = node!(ll, p).prev_idx;
-        node!(ll, p).nextz_idx = node!(ll, p).next_idx;
-        p = node!(ll, p).next_idx;
-        if p == start {
-            break;
-        }
+        node!(ll,pi).prevz_idx = node!(ll,pi).prev_idx;
+		node!(ll,pi).nextz_idx = node!(ll,pi).next_idx;
+		pi = match pi {
+			start=>break,
+			_=>node!(ll,pi).next_idx,
+		};
     }
-    let pzi = prevz!(ll, p).idx;
-    node!(ll, pzi).nextz_idx = NULL;
-    node!(ll, p).prevz_idx = NULL;
 
-    sort_linked(ll, p);
+    let pzi = node!(ll, start).prevz_idx;	
+    node!(ll, pzi).nextz_idx = NULL;
+    node!(ll, start).prevz_idx = NULL;
+
+    sort_linked(ll, start);
 }
 
 // Simon Tatham's linked list merge sort algorithm
@@ -452,13 +479,14 @@ fn sort_linked(ll: &mut LinkedLists, inlist: NodeIdx) {
 // check whether a polygon node forms a valid ear with adjacent nodes
 fn is_ear(ll: &LinkedLists, ear: usize) -> bool {
     let (a, b, c) = (&prev!(ll, ear), &node!(ll, ear), &next!(ll, ear));
-    if area(a, b, c) >= 0.0 {
+    if area_local(ll,ear) >= 0.0 {
         dlog!(8, " reflex, can't be an ear");
         return false;
     }
     dlog!(8, "make sure there's not any points inside potential ear");
     !ll.iter_range(c.next_idx..a.idx).any(|n| {
-        point_in_triangle(a, b, c, n) && (area(&prev!(ll, n.idx), n, &next!(ll, n.idx)) >= 0.0)
+        point_in_triangle(a, b, c, n) && (area_local(ll,n.idx)>=0.0)
+//area(&prev!(ll, n.idx), n, &next!(ll, n.idx)) >= 0.0)
     })
 }
 
@@ -474,85 +502,51 @@ fn is_ear_hashed(ll: &mut LinkedLists, ear: usize, minx: f64, miny: f64, invsize
     let a = &prev!(ll, ear);
     let b = &node!(ll, ear);
     let c = &next!(ll, ear);
-    if area(&a, &b, &c) >= 0.0 {
+//    if area(&a, &b, &c) >= 0.0 {
+    if area_local(ll, ear) >= 0.0 {
         dlog!(9, "reflex, can't be an ear");
         return false;
     }
 
-    // triangle bbox
-    let min_tx = ll
-        .iter_range((a.idx)..(c.idx))
-        .min_by(|n, m| compare_x(n, m))
-        .unwrap()
-        .x;
-    let max_tx = ll
-        .iter_range((a.idx)..(c.idx))
-        .max_by(|n, m| compare_x(m, n))
-        .unwrap()
-        .x;
-    let min_ty = ll
-        .iter_range((a.idx)..(c.idx))
-        .min_by(|n, m| compare_y(n, m))
-        .unwrap()
-        .y;
-    let max_ty = ll
-        .iter_range((a.idx)..(c.idx))
-        .max_by(|n, m| compare_y(m, n))
-        .unwrap()
-        .y;
+	let bbox = BoundingBox::new(ll,a.idx..c.idx);
 
     // z-order range for the current triangle bbox;
-    let min_z = zorder(min_tx, min_ty, minx, miny, invsize);
-    let max_z = zorder(max_tx, max_ty, minx, miny, invsize);
+    let min_z = zorder(bbox.minx, bbox.miny, minx, miny, invsize);
+    let max_z = zorder(bbox.maxx, bbox.maxy, minx, miny, invsize);
 
     let mut p = node!(ll, ear).prevz_idx;
     let mut n = node!(ll, ear).nextz_idx;
 
-    while (p != NULL) && (node!(ll, p).z >= min_z) && (n != NULL) && (node!(ll, n).z <= max_z) {
-        dlog!(18, "look for points inside the triangle in both directions");
-        if (p != node!(ll, ear).prev_idx)
-            && (p != node!(ll, ear).next_idx)
-            && point_in_triangle(&a, &b, &c, &node!(ll, p))
-            && area(&prev!(ll, p), &node!(ll, p), &next!(ll, p)) >= 0.0
-        {
-            return false;
-        }
-        p = node!(ll, p).prevz_idx;
+	fn conditions(ll:&LinkedLists,ear:usize, p:usize)->bool {
+	    let (a,b,c) = (&prev!(ll, ear),&node!(ll, ear),&next!(ll, ear));
+        (p != a.idx)
+        && (p != c.idx)
+        && point_in_triangle(&a, &b, &c, &node!(ll, p))
+        && area(&a, &b, &c) >= 0.0
+	}
 
-        if (n != node!(ll, ear).prev_idx)
-            && (n != node!(ll, ear).next_idx)
-            && point_in_triangle(&a, &b, &c, &node!(ll, n))
-            && area(&prev!(ll, n), &node!(ll, n), &next!(ll, n)) >= 0.0
-        {
-            return false;
-        }
+    dlog!(8, "look for points inside the triangle in both directions");
+    while (p != NULL) && 
+		(node!(ll, p).z >= min_z) 
+		&& (n != NULL) 
+		&& (node!(ll, n).z <= max_z) {
+		if conditions(ll,ear,p) { return false; }
+        p = node!(ll, p).prevz_idx;
+		if conditions(ll,ear,n) { return false; }
         n = node!(ll, n).nextz_idx;
     }
 
+    dlog!(8, "look for remaining points in decreasing z-order");
     while (p != NULL) && (node!(ll, p).z >= min_z) {
-        dlog!(18, "look for remaining points in decreasing z-order");
-        if (p != node!(ll, ear).prev_idx)
-            && (p != node!(ll, ear).next_idx)
-            && point_in_triangle(&a, &b, &c, &node!(ll, p))
-            && area(&prev!(ll, p), &node!(ll, p), &next!(ll, p)) >= 0.0
-        {
-            return false;
-        }
-        p = node!(ll, p).prevz_idx;
+		if conditions(ll,ear,p) { return false; }
+	     p = node!(ll, p).prevz_idx;
     }
-
+    dlog!(8, "look for remaining points in increasing z-order");
     while n != NULL && node!(ll, n).z <= max_z {
-        dlog!(18, "look for remaining points in increasing z-order");
-        if (n != node!(ll, ear).prev_idx)
-            && (n != node!(ll, ear).next_idx)
-            && point_in_triangle(&a, &b, &c, &node!(ll, n))
-            && area(&prev!(ll, n), &node!(ll, n), &next!(ll, n)) >= 0.0
-        {
-            return false;
-        }
+		if conditions(ll,ear,n) { return false; }
         n = node!(ll, n).nextz_idx;
     }
-    return true;
+    true
 }
 
 fn filter_points(ll: &mut LinkedLists, start: NodeIdx, mut end: NodeIdx) -> NodeIdx {
@@ -581,7 +575,8 @@ fn filter_points(ll: &mut LinkedLists, start: NodeIdx, mut end: NodeIdx) -> Node
         again = false;
         if (!(node!(ll, p).steiner))
             && (equals(&node!(ll, p), &next!(ll, p))
-                || area(&prev!(ll, p), &node!(ll, p), &next!(ll, p)) == 0.0)
+//                || area(&prev!(ll, p), &node!(ll, p), &next!(ll, p)) == 0.0)
+                || area_local(ll,p)==0.0)
         {
             ll.remove_node(p);
             end = node!(ll, p).prev_idx;
@@ -701,29 +696,11 @@ pub fn earcut(data: &Vec<f64>, hole_indices: &Vec<usize>, dim: usize) -> Vec<usi
     // if the shape is not too simple, we'll use z-order curve hash
     // later; calculate polygon bbox
     if data.len() > 80 * dim {
-        let maxx = data[0..outer_len]
-            .iter()
-            .step_by(dim)
-            .cloned()
-            .fold(std::f64::MAX, f64::max);
-        minx = data[0..outer_len]
-            .iter()
-            .step_by(dim)
-            .cloned()
-            .fold(std::f64::MIN, f64::min);
-        let maxy = data[0..outer_len]
-            .iter()
-            .skip(1)
-            .step_by(dim)
-            .cloned()
-            .fold(std::f64::MAX, f64::max);
-        miny = data[0..outer_len]
-            .iter()
-            .skip(1)
-            .step_by(dim)
-            .cloned()
-            .fold(std::f64::MIN, f64::min);
-        invsize = calc_invsize(minx, miny, maxx, maxy);
+		let bb = BoundingBox::new(&ll,outer_node..outer_node);
+		minx = bb.minx;
+		miny = bb.miny;
+        invsize = calc_invsize(minx, miny, bb.maxx, bb.maxy);
+		println!("{} {} {} {} {}",minx,miny,bb.maxx,bb.maxy,invsize);
     }
 
     // so basically, for data len < 80*dim, minx,miny are 0
@@ -743,6 +720,10 @@ pub fn earcut(data: &Vec<f64>, hole_indices: &Vec<usize>, dim: usize) -> Vec<usi
 // signed area of a parallelogram
 fn area(p: &Node, q: &Node, r: &Node) -> f64 {
     (q.y - p.y) * (r.x - q.x) - (q.x - p.x) * (r.y - q.y)
+}
+
+fn area_local(ll:&LinkedLists, qi: NodeIdx) -> f64 {
+	area( &prev!(ll,qi), &node!(ll,qi), &next!(ll,qi) )
 }
 
 // check if two points are equal
@@ -889,32 +870,23 @@ fn find_hole_bridge(ll: &LinkedLists, hole: &Node, outer_node: NodeIdx) -> NodeI
     // point to the left; segment's endpoint with lesser x will be
     // potential connection point
 
-    let mut retval = NULL;
-    ll.iter(outer_node)
+    for p in ll.iter(outer_node)
         .filter(|n| hole.y <= n.y && hole.y >= next!(ll, n.idx).y && next!(ll, n.idx).y != n.y)
-        .for_each(|p| {
-            if retval == NULL {
-                // fix this.. use some breaking iterator
+		{
                 let next = &next!(ll, p.idx);
                 let vx = p.x + (hole.y - p.y) * (next.x - p.x) / (next.y - p.y);
                 if (vx <= hole.x) && (vx > qx) {
                     qx = vx;
-                    retval = match hole {
-                        Node { x, y, .. } if *x == vx && *y == p.y => p.idx,
-                        Node { x, y, .. } if *x == vx && *y == next.y => next.idx,
-                        _ => retval,
-                    };
+					if vx == hole.x {
+                    	if hole.y == p.y {return p.idx}
+		                if hole.y == next.y {return next.idx}
+        	        }
                     m = match p.x < next.x {
                         true => p.idx,
                         false => next.idx,
                     }
                 }
-            }
-        });
-
-    if retval != NULL {
-        return retval;
-    }
+	};
 
     if m == NULL {
         return NULL;
@@ -1004,7 +976,7 @@ fn intersects_polygon(ll: &LinkedLists, a: &Node, b: &Node) -> bool {
 
 // check if a polygon diagonal is locally inside the polygon
 fn locally_inside(ll: &LinkedLists, a: &Node, b: &Node) -> bool {
-    match area(&prev!(ll, a.idx), a, &next!(ll, a.idx)) < 0.0 {
+    match area_local(ll,a.idx) < 0.0 {
         true => area(a, b, &next!(ll, a.idx)) >= 0.0 && area(a, &prev!(ll, a.idx), b) >= 0.0,
         false => area(a, b, &prev!(ll, a.idx)) < 0.0 || area(a, &next!(ll, a.idx), b) < 0.0,
     }
@@ -1198,6 +1170,7 @@ pub fn flatten(data: &Vec<Vec<Vec<f64>>>) -> (Vec<f64>, Vec<usize>, usize) {
 }
 
 //http://www.howtobuildsoftware.com/index.php/how-do/zK2/iterator-rust-how-to-implement-iterator-and-intoiterator-for-a-simple-struct
+
 struct NodeIterator<'a> {
     start: NodeIdx,
     cur: NodeIdx,
@@ -1218,21 +1191,20 @@ impl<'a> NodeIterator<'a> {
     }
 }
 
-impl<'a> Iterator for NodeIterator<'a> {
-    type Item = &'a Node;
-    fn next(&mut self) -> Option<&'a Node> {
-        let ll = self.ll;
+impl<'a> Iterator for NodeIterator<'a> { 
+	type Item = &'a Node; 
+	fn  next(&mut self) -> Option<Self::Item> {
         let result = if self.count == 0 {
-            Some(&node!(ll, self.cur)) // single-node iterator
+            Some(&node!(self.ll,self.cur)) // single-node iterator
         } else if self.cur == std::usize::MAX {
             None // NULL node
         } else if self.cur == self.end {
             None // end of iteration
         } else {
-            Some(&node!(ll, self.cur)) // normal iteration
+            Some(&node!(self.ll, self.cur)) // normal iteration
         };
         self.count += 1;
-        self.cur = node!(ll, self.cur).next_idx;
+        self.cur = node!(self.ll, self.cur).next_idx;
         result
     }
 }

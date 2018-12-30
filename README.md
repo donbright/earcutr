@@ -169,12 +169,17 @@ during conversion from base 10 to 32-bit base 2.
 Yes. [A. Beinges's "Too Many Lists"](https://cglab.ca/~abeinges/blah/too-many-lists/book/) 
 shows how to do Linked Lists in Rust.
 
-This code, instead, implements a Circular Doubly Linked List entirely on 
-top of a Rust Vector, so that there is no unsafe code, and no reference 
-cycles. This does not use Rc, Box, Arc, etc. The pointers in normal 
-Linked List Node code have been replaced by integers which index into a 
-single Vector of Nodes. This vector is called 'll' and is created inside
-"earcut".
+However. We are dealing with circular linked lists, which is common in 
+geometry programs. They are also doubly linked. It inherently has a 
+reference cycle by its very nature - the list of points are called 
+'rings' or 'cycles'. 
+
+To avoid that, This code implements a Circular Doubly Linked List 
+entirely on top of a Rust Vector, so that there is no unsafe code, and 
+no reference cycles. This does not use Rc, Box, Arc, etc. The pointers 
+in normal Linked List Node code have been replaced by integers which 
+index into a single Vector of Nodes. This vector is called 'll' and is 
+created inside "earcut".
 
 #### Tests, Benchmarks
 
