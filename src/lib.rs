@@ -4,7 +4,6 @@ static NULL: usize = 0x777A91CC;
 static NULL32: u32 = 0xFFFFFFFF;
 //static DEBUG: usize = 4;
 static DEBUG: usize = 0;
-static TESTHASH: bool = true;
 
 type NodeIdx = usize;
 
@@ -248,6 +247,7 @@ fn earcut_linked(
     miny: f64,
     invsize: f64,
     pass: usize,
+	testhash: bool,
 ) {
     if ear == NULL {
         return;
@@ -255,7 +255,7 @@ fn earcut_linked(
 
     // interlink polygon nodes in z-order
     // note this does nothing for smaller data len, b/c invsize will be 0
-    if pass == 0 && (invsize > 0.0 || TESTHASH) {
+    if pass == 0 && (invsize > 0.0 || testhash) {
         index_curve(ll, ear, minx, miny, invsize);
     }
 
@@ -274,7 +274,7 @@ fn earcut_linked(
         } else {
             test = is_ear(ll, ear);
         }
-        if TESTHASH {
+        if testhash {
             assert!(is_ear(ll, ear) == is_ear_hashed(ll, ear, minx, miny, invsize));
         }
         if test {
@@ -299,16 +299,16 @@ fn earcut_linked(
             if pass == 0 {
                 // try filtering points and slicing again
                 let tmp = filter_points(ll, ear, NULL);
-                earcut_linked(ll, tmp, triangles, dim, minx, miny, invsize, 1);
+                earcut_linked(ll, tmp, triangles, dim, minx, miny, invsize, 1, testhash);
             } else if pass == 1 {
                 // if this didn't work, try curing all small
                 // self-intersections locally
                 ear = cure_local_intersections(ll, ear, triangles, dim);
-                earcut_linked(ll, ear, triangles, dim, minx, miny, invsize, 2);
+                earcut_linked(ll, ear, triangles, dim, minx, miny, invsize, 2, testhash);
             } else if pass == 2 {
                 // as a last resort, try splitting the remaining polygon
                 // into two
-                split_earcut(ll, ear, triangles, dim, minx, miny, invsize);
+                split_earcut(ll, ear, triangles, dim, minx, miny, invsize,testhash);
             }
             break;
         }
@@ -470,7 +470,6 @@ fn is_ear_hashed(ll: &mut LinkedLists, ear: usize, minx: f64, miny: f64, invsize
     true
 }
 
-
 fn filter_points(ll: &mut LinkedLists, start: NodeIdx, mut end: NodeIdx) -> NodeIdx {
     dlog!(4, "fn filter_points, eliminate colinear or duplicate points");
     if start == NULL {
@@ -485,7 +484,7 @@ fn filter_points(ll: &mut LinkedLists, start: NodeIdx, mut end: NodeIdx) -> Node
     }
 
     let mut p = start;
-    let mut again = false;
+    let mut again;
 
 
 	// this loop "wastes" calculations by going over the same points multiple
@@ -493,7 +492,8 @@ fn filter_points(ll: &mut LinkedLists, start: NodeIdx, mut end: NodeIdx) -> Node
 	// the algorithm of other code that calls the filter_points function.
     loop {
         again = false;
-        if 	!node!(ll, p).steiner 
+        if 
+			 !node!(ll, p).steiner 
 			&& ( equals(&node!(ll,p),&next!(ll,p)) || 
 area(&prev!(ll, p), &node!(ll, p), &next!(ll, p)) == 0.0 )
         {
@@ -513,28 +513,6 @@ area(&prev!(ll, p), &node!(ll, p), &next!(ll, p)) == 0.0 )
     }
 
 
-/*            end = node!(ll, end).prev_idx;
-            end = node!(ll, end).prev_idx;
-            end = node!(ll, end).prev_idx;
-            end = node!(ll, end).prev_idx;
-            end = node!(ll, end).prev_idx;
-            end = node!(ll, end).prev_idx;
-            end = node!(ll, end).prev_idx;
-            end = node!(ll, end).prev_idx;
-            end = node!(ll, end).prev_idx;
-            end = node!(ll, end).prev_idx;
-            end = node!(ll, end).prev_idx;
-            end = node!(ll, end).prev_idx;
-            end = node!(ll, end).prev_idx;
-            end = node!(ll, end).prev_idx;
-            end = node!(ll, end).prev_idx;
-            end = node!(ll, end).prev_idx;
-            end = node!(ll, end).prev_idx;
-            end = node!(ll, end).prev_idx;
-            end = node!(ll, end).prev_idx;
-            end = node!(ll, end).prev_idx;
-            end = node!(ll, end).prev_idx;
-            end = node!(ll, end).prev_idx;*/
     dlog!(4, "fn filter points end {}", node!(ll, end).i);
     return end;
 }
@@ -610,7 +588,14 @@ fn point_in_triangle(a: &Node, b: &Node, c: &Node, p: &Node) -> bool {
         && ((b.x - p.x) * (c.y - p.y) - (c.x - p.x) * (b.y - p.y) >= 0.0)
 }
 
-pub fn earcut(data: &Vec<f64>, hole_indices: &Vec<usize>, mut dim: usize) -> Vec<usize> {
+pub fn earcut(data: &Vec<f64>, hole_indices: &Vec<usize>, dim: usize) -> Vec<usize> {
+	earcut_testable(&data, &hole_indices, dim, false)
+}
+
+// testable: we can compare hashed earcheck to normal earcheck. as a cache,
+// this is hard to test with normal tests b/c it is not always 'on'. by forcing
+// it to be on, we can force better test coverage.
+pub fn earcut_testable(data: &Vec<f64>, hole_indices: &Vec<usize>, mut dim: usize, testhash:bool) -> Vec<usize> {
     if dim == 0 {
         dim = 2
     };
@@ -631,12 +616,9 @@ pub fn earcut(data: &Vec<f64>, hole_indices: &Vec<usize>, mut dim: usize) -> Vec
 
     // if the shape is not too simple, we'll use z-order curve hash
     // later; calculate polygon bbox
-    if data.len() > 80 * dim || TESTHASH {
+    if data.len() > 80 * dim || testhash {
 		let mut bb = BoundingBox::new(&node!(ll,outer_node));
 		ll.iter_range(outer_node..outer_node).for_each(|n| bb.expand(n));
-//		for n in ll.iter_range(outer_node..outer_node) {
-//			bb.expand(n);
-//		}
 		minx = bb.minx;
 		miny = bb.miny;
         invsize = calc_invsize(bb.minx, bb.miny, bb.maxx, bb.maxy);
@@ -652,6 +634,7 @@ pub fn earcut(data: &Vec<f64>, hole_indices: &Vec<usize>, mut dim: usize) -> Vec
         miny,
         invsize,
         0,
+		testhash,
     );
 
     return triangles;
@@ -748,6 +731,7 @@ fn split_earcut(
     minx: f64,
     miny: f64,
     invsize: f64,
+	testhash: bool,
 ) {
     dlog!(
         4,
@@ -764,7 +748,6 @@ fn split_earcut(
     loop {
         let mut b = next!(ll, a).next_idx;
         while b != node!(ll, a).prev_idx {
-            let test = is_valid_diagonal(ll, &node!(ll, a), &node!(ll, b));
             if node!(ll, a).i != node!(ll, b).i
                 && is_valid_diagonal(ll, &node!(ll, a), &node!(ll, b))
             {
@@ -778,8 +761,8 @@ fn split_earcut(
                 c = filter_points(ll, c, cn);
 
                 // run earcut on each half
-                earcut_linked(ll, a, triangles, dim, minx, miny, invsize, 0);
-                earcut_linked(ll, c, triangles, dim, minx, miny, invsize, 0);
+                earcut_linked(ll, a, triangles, dim, minx, miny, invsize, 0, testhash);
+                earcut_linked(ll, c, triangles, dim, minx, miny, invsize, 0, testhash);
                 return;
             }
             b = node!(ll, b).next_idx;
@@ -1488,23 +1471,24 @@ mod tests {
     #[test]
     fn test_earcut_linked() {
         let dim = 2;
+		let testhash = true;
 
         let m = vec![0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0];
         let (mut ll, _) = linked_list(&m, 0, m.len(), dim, true);
         let (mut tris, minx, miny, invsize, pass) = (Vec::new(), 0.0, 0.0, 0.0, 0);
-        earcut_linked(&mut ll, 0, &mut tris, dim, minx, miny, invsize, pass);
+        earcut_linked(&mut ll, 0, &mut tris, dim, minx, miny, invsize, pass, testhash);
         assert!(tris.len() == 6);
 
         let m = vec![0.0, 0.0, 0.5, 0.5, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0];
         let (mut ll, _) = linked_list(&m, 0, m.len(), dim, true);
         let (mut tris, minx, miny, invsize, pass) = (Vec::new(), 0.0, 0.0, 0.0, 0);
-        earcut_linked(&mut ll, 0, &mut tris, dim, minx, miny, invsize, pass);
+        earcut_linked(&mut ll, 0, &mut tris, dim, minx, miny, invsize, pass, testhash);
         assert!(tris.len() == 9);
 
         let m = vec![0.0, 0.0, 0.5, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0];
         let (mut ll, _) = linked_list(&m, 0, m.len(), dim, true);
         let (mut tris, minx, miny, invsize, pass) = (Vec::new(), 0.0, 0.0, 0.0, 0);
-        earcut_linked(&mut ll, 0, &mut tris, dim, minx, miny, invsize, pass);
+        earcut_linked(&mut ll, 0, &mut tris, dim, minx, miny, invsize, pass, testhash);
         assert!(tris.len() == 9);
     }
 
@@ -1829,7 +1813,7 @@ mod tests {
         let (mut ll, _) = linked_list(&m, 0, m.len(), dim, true);
         let start = 0;
         let mut triangles: Vec<usize> = Vec::new();
-        split_earcut(&mut ll, start, &mut triangles, dim, minx, miny, invsize);
+        split_earcut(&mut ll, start, &mut triangles, dim, minx, miny, invsize,true);
         assert!(triangles.len() == 6);
         assert!(ll.nodes.len() == 6);
         assert!(ll.freelist.len() == 2);
@@ -1844,7 +1828,7 @@ mod tests {
         let (mut ll, _) = linked_list(&m, 0, m.len(), dim, true);
         let start = 0;
         let mut triangles: Vec<usize> = Vec::new();
-        split_earcut(&mut ll, start, &mut triangles, dim, minx, miny, invsize);
+        split_earcut(&mut ll, start, &mut triangles, dim, minx, miny, invsize,true);
         assert!(ll.nodes.len() == 12);
     }
 

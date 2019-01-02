@@ -3,14 +3,12 @@ name = "earcutr"
 version = "0.1.0"
 authors = ["don bright <hmbright@fastmail.com>"]
 
-[dependencies]
+[dev-dependencies]
 serde = "1.0.80"
 serde_derive = "1.0.80"
 serde_json = "1.0.33"
-rayon = "1.0.0"
 bencher ="0.1.5"
 
 [[bench]]
 name = "speedtest"
 harness = false
-
