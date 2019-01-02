@@ -204,6 +204,33 @@ test bench_water_huge2          ... bench: 185,141,323 ns/iter (+/- 167,773,665)
 Bench note: As of this writing, benchmarking is not in Stable Rust, so 
 this project uses an alternative, https://docs.rs/bencher/0.1.5/bencher/
 
+Speed vs C++:
+
+Mapbox has a C++ port of earcut.hpp, with a built in benchmarker, measured
+in 'ops per second'. For water_huge:
+
+```bash
+____polygon_________________earcut.hpp_________libtessc++___
+| water          |          231 ops/s |           70 ops/s |
+| water2         |          183 ops/s |          325 ops/s |
+| water3         |        4,198 ops/s |        2,558 ops/s |
+| water3b        |       41,345 ops/s |       15,412 ops/s |
+| water4         |          784 ops/s |          593 ops/s |
+| water_huge     |           19 ops/s |           27 ops/s |
+| water_huge2    |            8 ops/s |           36 ops/s |
+------------------------------------------------------------
+19 ops in 1 second, is 
+19 iterations in 1,000,000,000 nanoseconds. 
+1,000,000,000 / 19 -> 52,631,578 nanoseconds/iteration
+41345 ops/s -> 24,186 ns/iter  (water3b)
+784 ops/s -> 1,275,510 ns/iter (water4)
+231 ops/s -> 4,329,004 ns/iter (water)
+```
+
+So currently this code varies, usually 3-4 times slower than C++, 
+sometimes worse, sometimes the same. It depends on the input. That is 
+not necessarily a reflection on Rust but on this port.
+
 #### In other languages
 
 - [mapbox/earcut](https://github.com/mapbox/earcut) the Original javascript
