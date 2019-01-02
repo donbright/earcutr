@@ -7,6 +7,20 @@ static DEBUG: usize = 0;
 
 type NodeIdx = usize;
 
+#[derive(Clone)]
+struct Node {
+    i: usize,         // vertex index in flat one-d array of 64bit float coords
+    x: f64,           // vertex x coordinate
+    y: f64,           // vertex y coordinate
+    prev_idx: usize,  // previous vertex node in a polygon ring
+    next_idx: usize,  // next vertex node in a polygon ring
+    z: u32,           // z-order curve value
+    prevz_idx: usize, // previous node in z-order
+    nextz_idx: usize, // next node in z-order
+    steiner: bool,    // indicates whether this is a steiner point
+    idx: usize,       // index within LinkedLists vector that holds all nodes
+}
+
 impl Node {
     fn new(i: usize, x: f64, y: f64, idx: usize) -> Node {
         Node {
@@ -22,20 +36,6 @@ impl Node {
             idx: idx,
         }
     }
-}
-
-#[derive(Clone)]
-struct Node {
-    i: usize,        // vertex index in f64s array
-    x: f64,          // vertex x f64s
-    y: f64,          // vertex y f64s
-    prev_idx: usize, // previous vertex nodes in a polygon ring
-    next_idx: usize,
-    z: u32,           // z-order curve value
-    prevz_idx: usize, // previous and next nodes in z-order
-    nextz_idx: usize,
-    steiner: bool, // indicates whether this is a steiner point
-    idx: usize,    // index within vector that holds all nodes
 }
 
 macro_rules! dlog {
@@ -67,7 +67,7 @@ macro_rules! prevz {
 
 pub struct LinkedLists {
     nodes: Vec<Node>,
-    freelist: Vec<NodeIdx>, // remove nodes have their index stored here
+    freelist: Vec<NodeIdx>, // removed nodes have their index stored here
 }
 
 #[derive(Debug)]
@@ -84,7 +84,7 @@ impl BoundingBox {
         self.minx = f64::min(self.minx, n.x);
         self.miny = f64::min(self.miny, n.y);
     }
-    fn new(p:&Node)->BoundingBox {
+    fn new(p: &Node) -> BoundingBox {
         BoundingBox {
             maxx: p.x,
             maxy: p.y,
@@ -140,7 +140,7 @@ impl LinkedLists {
             freelist: Vec::new(),
         }
     }
-} // LinkedLists
+}
 
 struct NodeIterator<'a> {
     start: NodeIdx,
@@ -247,7 +247,7 @@ fn earcut_linked(
     miny: f64,
     invsize: f64,
     pass: usize,
-	testhash: bool,
+    testhash: bool,
 ) {
     if ear == NULL {
         return;
@@ -308,7 +308,7 @@ fn earcut_linked(
             } else if pass == 2 {
                 // as a last resort, try splitting the remaining polygon
                 // into two
-                split_earcut(ll, ear, triangles, dim, minx, miny, invsize,testhash);
+                split_earcut(ll, ear, triangles, dim, minx, miny, invsize, testhash);
             }
             break;
         }
@@ -422,8 +422,8 @@ fn is_ear_hashed(ll: &mut LinkedLists, ear: usize, minx: f64, miny: f64, invsize
     }
 
     let mut bbox = BoundingBox::new(&a);
-	bbox.expand(&b);
-	bbox.expand(&c);
+    bbox.expand(&b);
+    bbox.expand(&c);
 
     // z-order range for the current triangle bbox;
     let min_z = zorder(bbox.minx, bbox.miny, minx, miny, invsize);
@@ -471,7 +471,10 @@ fn is_ear_hashed(ll: &mut LinkedLists, ear: usize, minx: f64, miny: f64, invsize
 }
 
 fn filter_points(ll: &mut LinkedLists, start: NodeIdx, mut end: NodeIdx) -> NodeIdx {
-    dlog!(4, "fn filter_points, eliminate colinear or duplicate points");
+    dlog!(
+        4,
+        "fn filter_points, eliminate colinear or duplicate points"
+    );
     if start == NULL {
         dlog!(4, "fn filter points, start null");
         return start;
@@ -486,16 +489,14 @@ fn filter_points(ll: &mut LinkedLists, start: NodeIdx, mut end: NodeIdx) -> Node
     let mut p = start;
     let mut again;
 
-
-	// this loop "wastes" calculations by going over the same points multiple
-	// times. however, altering the location of the 'end' node can disrupt
-	// the algorithm of other code that calls the filter_points function.
+    // this loop "wastes" calculations by going over the same points multiple
+    // times. however, altering the location of the 'end' node can disrupt
+    // the algorithm of other code that calls the filter_points function.
     loop {
         again = false;
-        if 
-			 !node!(ll, p).steiner 
-			&& ( equals(&node!(ll,p),&next!(ll,p)) || 
-area(&prev!(ll, p), &node!(ll, p), &next!(ll, p)) == 0.0 )
+        if !node!(ll, p).steiner
+            && (equals(&node!(ll, p), &next!(ll, p))
+                || area(&prev!(ll, p), &node!(ll, p), &next!(ll, p)) == 0.0)
         {
             ll.remove_node(p);
             end = node!(ll, p).prev_idx;
@@ -511,7 +512,6 @@ area(&prev!(ll, p), &node!(ll, p), &next!(ll, p)) == 0.0 )
             break;
         }
     }
-
 
     dlog!(4, "fn filter points end {}", node!(ll, end).i);
     return end;
@@ -531,6 +531,7 @@ fn linked_list(
     (ll, lastidx)
 }
 
+// add new nodes to an existing linked list.
 fn linked_list_add_contour(
     ll: &mut LinkedLists,
     data: &Vec<f64>,
@@ -589,13 +590,17 @@ fn point_in_triangle(a: &Node, b: &Node, c: &Node, p: &Node) -> bool {
 }
 
 pub fn earcut(data: &Vec<f64>, hole_indices: &Vec<usize>, dim: usize) -> Vec<usize> {
-	earcut_testable(&data, &hole_indices, dim, false)
+    earcut_testable(&data, &hole_indices, dim, false)
 }
 
-// testable: we can compare hashed earcheck to normal earcheck. as a cache,
-// this is hard to test with normal tests b/c it is not always 'on'. by forcing
-// it to be on, we can force better test coverage.
-pub fn earcut_testable(data: &Vec<f64>, hole_indices: &Vec<usize>, mut dim: usize, testhash:bool) -> Vec<usize> {
+// testable, allows us to check 'hashed-ear' test against 'normal ear' test,
+// so during tests we can exercise all the code paths and make sure they work.
+pub fn earcut_testable(
+    data: &Vec<f64>,
+    hole_indices: &Vec<usize>,
+    mut dim: usize,
+    testhash: bool,
+) -> Vec<usize> {
     if dim == 0 {
         dim = 2
     };
@@ -617,10 +622,11 @@ pub fn earcut_testable(data: &Vec<f64>, hole_indices: &Vec<usize>, mut dim: usiz
     // if the shape is not too simple, we'll use z-order curve hash
     // later; calculate polygon bbox
     if data.len() > 80 * dim || testhash {
-		let mut bb = BoundingBox::new(&node!(ll,outer_node));
-		ll.iter_range(outer_node..outer_node).for_each(|n| bb.expand(n));
-		minx = bb.minx;
-		miny = bb.miny;
+        let mut bb = BoundingBox::new(&node!(ll, outer_node));
+        ll.iter_range(outer_node..outer_node)
+            .for_each(|n| bb.expand(n));
+        minx = bb.minx;
+        miny = bb.miny;
         invsize = calc_invsize(bb.minx, bb.miny, bb.maxx, bb.maxy);
     }
 
@@ -634,7 +640,7 @@ pub fn earcut_testable(data: &Vec<f64>, hole_indices: &Vec<usize>, mut dim: usiz
         miny,
         invsize,
         0,
-		testhash,
+        testhash,
     );
 
     return triangles;
@@ -678,24 +684,6 @@ fn cure_local_intersections(
         let a = node!(ll, p).prev_idx;
         let b = next!(ll, p).next_idx;
 
-        dlog!(8, "a:{} b:{} p:{} pn:{}", a, b, p, node!(ll, p).next_idx);
-        dlog!(8, "a==b?{}", equals(&node!(ll, a), &node!(ll, b)));
-        dlog!(
-            8,
-            "isct a p pn b {}",
-            pseudo_intersects(&node!(ll, a), &node!(ll, p), &next!(ll, p), &node!(ll, b))
-        );
-        dlog!(
-            8,
-            "locin a b {}",
-            locally_inside(ll, &node!(ll, a), &node!(ll, b))
-        );
-        dlog!(
-            8,
-            "locin b a {}",
-            locally_inside(ll, &node!(ll, b), &node!(ll, a))
-        );
-
         if !equals(&node!(ll, a), &node!(ll, b))
             && pseudo_intersects(&node!(ll, a), &node!(ll, p), &next!(ll, p), &node!(ll, b))
             && locally_inside(ll, &node!(ll, a), &node!(ll, b))
@@ -731,7 +719,7 @@ fn split_earcut(
     minx: f64,
     miny: f64,
     invsize: f64,
-	testhash: bool,
+    testhash: bool,
 ) {
     dlog!(
         4,
@@ -1111,7 +1099,7 @@ fn signed_area(data: &Vec<f64>, start: usize, end: usize, dim: usize) -> f64 {
     })
 }
 
-// turn a polygon in a multi-dimensional array form (e.g. as in GeoJSON) 
+// turn a polygon in a multi-dimensional array form (e.g. as in GeoJSON)
 // into a form Earcut accepts
 pub fn flatten(data: &Vec<Vec<Vec<f64>>>) -> (Vec<f64>, Vec<usize>, usize) {
     (
@@ -1130,27 +1118,27 @@ pub fn flatten(data: &Vec<Vec<Vec<f64>>>) -> (Vec<f64>, Vec<usize>, usize) {
     )
 }
 
-    fn pn(a: usize) -> String {
-        match a {
-            0x777A91CC => String::from("NULL"),
-            _ => a.to_string(),
-        }
+fn pn(a: usize) -> String {
+    match a {
+        0x777A91CC => String::from("NULL"),
+        _ => a.to_string(),
     }
-    fn pb(a: bool) -> String {
-        match a {
-            true => String::from("x"),
-            false => String::from(" "),
-        }
+}
+fn pb(a: bool) -> String {
+    match a {
+        true => String::from("x"),
+        false => String::from(" "),
     }
-    fn dump(ll: &LinkedLists) -> String {
-        let mut s = format!("LL, #nodes: {}", ll.nodes.len());
-        s.push_str(&format!(" #used: {}\n", ll.nodes.len() - ll.freelist.len()));
+}
+fn dump(ll: &LinkedLists) -> String {
+    let mut s = format!("LL, #nodes: {}", ll.nodes.len());
+    s.push_str(&format!(" #used: {}\n", ll.nodes.len() - ll.freelist.len()));
+    s.push_str(&format!(
+        " {:>3} {:>3} {:>4} {:>4} {:>8.3} {:>8.3} {:>4} {:>4} {:>2} {:>2} {:>2}\n",
+        "vi", "i", "p", "n", "x", "y", "pz", "nz", "st", "fr", "cyl"
+    ));
+    for n in ll.nodes.iter() {
         s.push_str(&format!(
-            " {:>3} {:>3} {:>4} {:>4} {:>8.3} {:>8.3} {:>4} {:>4} {:>2} {:>2} {:>2}\n",
-            "vi", "i", "p", "n", "x", "y", "pz", "nz", "st", "fr", "cyl"
-        ));
-        for n in ll.nodes.iter() {
-            s.push_str(&format!(
                 " {:>3} {:>3} {:>4} {:>4} {:>8.3} {:>8.3} {:>4} {:>4} {:>2} {:>2} {:>2}\n",
                 n.idx,
                 n.i,
@@ -1164,10 +1152,9 @@ pub fn flatten(data: &Vec<Vec<Vec<f64>>>) -> (Vec<f64>, Vec<usize>, usize) {
                 pb(ll.freelist.contains(&n.idx)),
                 0//,ll.iter_range(n.idx..n.idx).count(),
             ));
-        }
-        return s;
     }
-
+    return s;
+}
 
 #[cfg(test)]
 mod tests {
@@ -1215,7 +1202,6 @@ mod tests {
             }
         }
     }
-
 
     fn dump_cycle(ll: &LinkedLists, start: usize) -> String {
         let mut s = format!("LL, #nodes: {}", ll.nodes.len());
@@ -1454,12 +1440,11 @@ mod tests {
         let r32 = filter_points(&mut ll, 0, 99);
         assert!(cycle_len(&ll, r32) != 4);
 
-        let o = vec![0.0, 0.0, 0.25, 0.0, 0.5, 0.0, 1.0, 0.0, 1.0, 1.0, 0.5,0.5];
+        let o = vec![0.0, 0.0, 0.25, 0.0, 0.5, 0.0, 1.0, 0.0, 1.0, 1.0, 0.5, 0.5];
         let (mut ll, _) = linked_list(&o, 0, o.len(), dims, true);
         let lllen = ll.nodes.len();
         let r3 = filter_points(&mut ll, 0, lllen - 1);
         assert!(cycle_len(&ll, r3) == 3);
-
 
         let o = vec![0.0, 0.0, 0.5, 0.5, 0.0, 1.0, 1.0, 1.0, 1.0, 0.0];
         let (mut ll, _) = linked_list(&o, 0, o.len(), dims, true);
@@ -1471,24 +1456,30 @@ mod tests {
     #[test]
     fn test_earcut_linked() {
         let dim = 2;
-		let testhash = true;
+        let testhash = true;
 
         let m = vec![0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0];
         let (mut ll, _) = linked_list(&m, 0, m.len(), dim, true);
         let (mut tris, minx, miny, invsize, pass) = (Vec::new(), 0.0, 0.0, 0.0, 0);
-        earcut_linked(&mut ll, 0, &mut tris, dim, minx, miny, invsize, pass, testhash);
+        earcut_linked(
+            &mut ll, 0, &mut tris, dim, minx, miny, invsize, pass, testhash,
+        );
         assert!(tris.len() == 6);
 
         let m = vec![0.0, 0.0, 0.5, 0.5, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0];
         let (mut ll, _) = linked_list(&m, 0, m.len(), dim, true);
         let (mut tris, minx, miny, invsize, pass) = (Vec::new(), 0.0, 0.0, 0.0, 0);
-        earcut_linked(&mut ll, 0, &mut tris, dim, minx, miny, invsize, pass, testhash);
+        earcut_linked(
+            &mut ll, 0, &mut tris, dim, minx, miny, invsize, pass, testhash,
+        );
         assert!(tris.len() == 9);
 
         let m = vec![0.0, 0.0, 0.5, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0];
         let (mut ll, _) = linked_list(&m, 0, m.len(), dim, true);
         let (mut tris, minx, miny, invsize, pass) = (Vec::new(), 0.0, 0.0, 0.0, 0);
-        earcut_linked(&mut ll, 0, &mut tris, dim, minx, miny, invsize, pass, testhash);
+        earcut_linked(
+            &mut ll, 0, &mut tris, dim, minx, miny, invsize, pass, testhash,
+        );
         assert!(tris.len() == 9);
     }
 
@@ -1770,11 +1761,11 @@ mod tests {
 
         eliminate_holes(&mut ll, &body, &hole_indices, 0, 2);
 
-		for i in 0..13 {
-			if !ll.freelist.contains(&i) {
-		        assert!(cycle_len(&ll, i)== body.len() / 2 + 2 + 2 );
-			}
-		}
+        for i in 0..13 {
+            if !ll.freelist.contains(&i) {
+                assert!(cycle_len(&ll, i) == body.len() / 2 + 2 + 2);
+            }
+        }
     }
 
     #[test]
@@ -1813,7 +1804,16 @@ mod tests {
         let (mut ll, _) = linked_list(&m, 0, m.len(), dim, true);
         let start = 0;
         let mut triangles: Vec<usize> = Vec::new();
-        split_earcut(&mut ll, start, &mut triangles, dim, minx, miny, invsize,true);
+        split_earcut(
+            &mut ll,
+            start,
+            &mut triangles,
+            dim,
+            minx,
+            miny,
+            invsize,
+            true,
+        );
         assert!(triangles.len() == 6);
         assert!(ll.nodes.len() == 6);
         assert!(ll.freelist.len() == 2);
@@ -1828,7 +1828,16 @@ mod tests {
         let (mut ll, _) = linked_list(&m, 0, m.len(), dim, true);
         let start = 0;
         let mut triangles: Vec<usize> = Vec::new();
-        split_earcut(&mut ll, start, &mut triangles, dim, minx, miny, invsize,true);
+        split_earcut(
+            &mut ll,
+            start,
+            &mut triangles,
+            dim,
+            minx,
+            miny,
+            invsize,
+            true,
+        );
         assert!(ll.nodes.len() == 12);
     }
 
@@ -1880,4 +1889,3 @@ mod tests {
         assert!(triangles.len() > 4);
     }
 }
-

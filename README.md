@@ -1,8 +1,9 @@
 ## Earcutr
 
-This is a Polygon triangulation library, translated into the Rust computer 
-language from the original javascript code of MapBox's Earcut. Please see 
-https://github.com/mapbox/earcut for more information about the original javascript code.
+This is a single-threaded Polygon triangulation library, translated into 
+the Rust computer language from the original javascript code of MapBox's 
+Earcut. Please see https://github.com/mapbox/earcut for more information 
+about the original javascript code.
 
 ![image showing an outline of a circle with a hole inside of it, with triangles inside of it](viz/circle.png "circle, earcut")
 
