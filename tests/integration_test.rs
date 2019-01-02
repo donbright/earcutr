@@ -54,12 +54,13 @@ fn parse_json(rawdata: &str) -> Option<Vec<Vec<Vec<f64>>>> {
     return Some(v);
 }
 
-fn mkoutput(filename: &str, tris: &Vec<usize>, data: &Vec<Vec<Vec<f64>>>, pass: bool, rpt:&str )->Result<(),std::io::Error> {
+fn mkoutput(filename_w_dashes: &str, tris: Vec<usize>, data: &Vec<Vec<Vec<f64>>>, pass: bool, rpt:&str )->Result<(),std::io::Error> {
     dlog!(4,
         "save data + triangles: {}, num tri pts:{}, rpt: {},",
-        &filename,
+        &filename_w_dashes,
         tris.len(),rpt
     );
+	let filename = str::replace(filename_w_dashes,"-","_");
     let outfile = &format!("viz/testoutput/{}.js",filename);
     let f = OpenOptions::new()
 		.write(true)
@@ -125,7 +126,7 @@ fn area_test(filename: &str, expected_num_tris: usize, expected_deviation: f64) 
 	let rpt = format!("exp numtri:{}\nexp dev:{}\nact numtri:{}\nact dev:{}",
 		expected_num_tris,edeviation, actual_num_tris, actual_deviation);
     if visualize {
-        match mkoutput(&filename, &triangles, &xdata, pass, &rpt) {
+        match mkoutput(&filename, triangles, &xdata, pass, &rpt) {
 			Err(e)=>println!("error writing output {}",e),
 			_=>{}
 		}
