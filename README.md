@@ -142,10 +142,11 @@ be viewed in a web browser by opening viz/viz.html
 
 #### Tradeoffs
 
-This triangulator is built for simplicity, small size, and as a test to 
-see if it could be ported from javascript to Rust.
+This triangulator is built primarily as an exrcise in porting javascript
+to Rust. It is relatively simple and of reasonable speed. It is unknown
+if it is as fast as the original javascript code.
 
-If you want down-to-the-metal code, there is a C++ port of the 
+If you want down-to-the-metal code, there is a C++ port of the earcut
 javascript code, see the link at the end of this README.
 
 If you want to get correct triangulation even on very bad data with lots 
@@ -169,51 +170,43 @@ during conversion from base 10 to 32-bit base 2.
 Yes. [A. Beinges's "Too Many Lists"](https://cglab.ca/~abeinges/blah/too-many-lists/book/) 
 shows how to do Linked Lists in Rust.
 
-However. We are dealing with circular linked lists, which is common in 
-geometry programs. They are also doubly linked. It inherently has a 
-reference cycle by its very nature - the list of points are called 
-'rings' or 'cycles'. 
-
-To avoid that, This code implements a Circular Doubly Linked List 
-entirely on top of a Rust Vector, so that there is no unsafe code, and 
-no reference cycles. This does not use Rc, Box, Arc, etc. The pointers 
-in normal Linked List Node code have been replaced by integers which 
-index into a single Vector of Nodes. This vector is called 'll' and is 
-created inside "earcut".
+However this code implements a Circular Doubly Linked List entirely on 
+top of a Rust Vector, so that there is no unsafe code, and no reference 
+cycles. This does not use Rc, Box, Arc, etc. The pointers in normal 
+Linked List Node code have been replaced by integers which index into a 
+single Vector of Nodes stored in LinkedLists struct..
 
 #### Tests, Benchmarks
 
-You can copy the src/lib.rs file into your own project and use it.
-
-To download this full project, with tests and visualization code:
+To run tests:
 
 ```bash
 $ git clone github.com/donbright/earcutr
 $ cd earcutr
-$ cargo test             # generates test output under viz/testoutput
-$ cd viz                 # to visualize results, look under viz
-$ firefox viz.html       # anf view in your favorite web browser (circa 2018)
+$ cargo test             # normal Rust tests. Also outputs visualization data
+$ cd viz                 # which is stored under viz/testoutput. you can
+$ firefox viz.html       # view in your favorite web browser (circa 2018)
 ```
 
-Benchmarking (the measurement of code running speed) is a bit flaky 
-since benchmarking is not stable in Rust, as of this writing. So 
-benchmarking has been kept separate from ordinary tests, under the 
-'benches' directory. Benchmarking can done with a special 'bencher' Rust 
-crate from https://docs.rs/bencher/0.1.5/bencher/, run 'cargo bench'
-should automatically download it.
+To run benchmarks:
 
-A basic benchmark of code under 'benches' can be run as follows:
 
 ```bash
 $ cargo bench
 ...
-     Running target/release/deps/example-420f1427e108178b 
+test bench_water                ... bench:  87,722,836 ns/iter (+/- 137,252,829)
+test bench_water2               ... bench:  53,580,964 ns/iter (+/- 11,148,189)
+test bench_water3               ... bench:     824,188 ns/iter (+/- 263,085)
+test bench_water3b              ... bench:      50,801 ns/iter (+/- 6,916)
+test bench_water4               ... bench:  10,818,110 ns/iter (+/- 3,320,698)
+test bench_water_huge           ... bench: 521,789,551 ns/iter (+/- 20,781,937)
+test bench_water_huge2          ... bench: 700,321,953 ns/iter (+/- 17,848,674)
+```
 
-running 2 tests
-test basic_hole          ... bench:  90,285,759 ns/iter (+/- 53,462,257)
-test basic_quadrilateral ... bench:  32,638,897 ns/iter (+/- 17,170,055)
+Bench note: As of this writing, benchmarking is not in Stable Rust, so 
+this project uses an alternative, https://docs.rs/bencher/0.1.5/bencher/
 
-#### Ports to other languages
+#### In other languages
 
 - [mapbox/earcut](https://github.com/mapbox/earcut) the Original javascript
 - [mapbox/earcut.hpp](https://github.com/mapbox/earcut.hpp) C++11

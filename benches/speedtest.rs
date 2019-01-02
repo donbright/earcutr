@@ -1,117 +1,502 @@
+/*
+Note: This module uses the 'unofficial' bench that works with Stable Rust as
+of 2018. This may conflict with "official" bench which is in "Nightly" Rust
+*/
 #[macro_use]
 extern crate bencher;
 extern crate earcutr;
-
+extern crate serde;
+extern crate serde_json;
 use bencher::Bencher;
+use std::fs::File;
+use std::fs::OpenOptions;
+use std::io::Read;
+use std::io::Write;
 
-fn quadrilateral(bench: &mut Bencher) {
-    bench.iter(|| {
-        for _ in 0..99 {
-            let triangles =
-                earcutr::earcut(&vec![10., 0., 0., 50., 60., 60., 70., 10.], &vec![], 2);
-            assert!(triangles == vec![1, 0, 3, 3, 2, 1]);
+// this is to "force" optimized code to measure results, by outputting
+fn mkoutput(filename_w_dashes: &str,triangles:Vec<usize>) {
+    let filename = str::replace(filename_w_dashes, "-", "_");
+    let outfile = &format!("benches/benchoutput/{}.js", filename);
+    match OpenOptions::new()
+       .write(true)
+        .create(true)
+        .truncate(true)
+        .open(outfile)
+         {
+		Err(e)=>println!("error writing {} {}",outfile,e),
+		Ok(f)=>writeln!(
+        &f,
+        r###"testOutput["{}"]["benchmark"]=[{:?},{:?},{:?}];"###,
+        filename, 0, triangles.len(), triangles
+    ).unwrap(),
+	};
+}
+
+fn parse_json(rawdata: &str) -> Option<Vec<Vec<Vec<f64>>>> {
+    let mut v: Vec<Vec<Vec<f64>>> = Vec::new();
+    match serde_json::from_str::<serde_json::Value>(&rawdata) {
+        Err(e) => println!("error deserializing, {}", e),
+        Ok(jsondata) => {
+            if jsondata.is_array() {
+                let contours = jsondata.as_array().unwrap();
+                for i in 0..contours.len() {
+                    let contourval = &contours[i];
+                    if contourval.is_array() {
+                        let contour = contourval.as_array().unwrap();
+                        let mut vc: Vec<Vec<f64>> = Vec::new();
+                        for j in 0..contour.len() {
+                            let points = contour[j].as_array().unwrap();
+                            let mut vp: Vec<f64> = Vec::new();
+                            for k in 0..points.len() {
+                                let val = points[k].to_string();
+                                let pval = val.parse::<f64>().unwrap();
+                                vp.push(pval);
+                            }
+                            vc.push(vp);
+                        }
+                        v.push(vc);
+                    }
+                }
+            }
         }
+    };
+    return Some(v);
+}
+
+fn load_json(testname: &str) -> (Vec<f64>, Vec<usize>, usize) {
+    let fullname = format!("./tests/fixtures/{}.json", testname);
+    let mut xdata: Vec<Vec<Vec<f64>>> = Vec::new();
+    match File::open(&fullname) {
+        Err(why) => println!("failed to open file '{}': {}", fullname, why),
+        Ok(mut f) => {
+            //println!("testing {},", fullname);
+            let mut strdata = String::new();
+            match f.read_to_string(&mut strdata) {
+                Err(why) => println!("failed to read {}, {}", fullname, why),
+                Ok(_numb) => {
+                    //println!("read {} bytes", numb);
+                    let rawstring = strdata.trim();
+                    match parse_json(rawstring) {
+                        None => println!("failed to parse {}", fullname),
+                        Some(parsed_data) => {
+                            xdata = parsed_data;
+                        }
+                    };
+                }
+            };
+        }
+    };
+    return earcutr::flatten(&xdata);
+}
+
+fn bench_quadrilateral(bench: &mut Bencher) {
+    bench.iter(|| {
+        earcutr::earcut(&vec![10., 0., 0., 50., 60., 60., 70., 10.], &vec![], 2);
+    });
+}
+
+fn bench_hole(bench: &mut Bencher) {
+    let mut v = vec![0., 0., 50., 0., 50., 50., 0., 50.];
+    let h = vec![10., 10., 40., 10., 40., 40., 10., 40.];
+    v.extend(h);
+    bench.iter(|| {
+        earcutr::earcut(&v, &vec![4], 2);
     })
 }
 
-fn hole(bench: &mut Bencher) {
+fn bench_flatten(bench: &mut Bencher) {
+    let v = vec![
+        vec![vec![0., 0.], vec![1., 0.], vec![1., 1.], vec![0., 1.]], // outer ring
+        vec![vec![1., 1.], vec![3., 1.], vec![3., 3.]],               // hole ring
+    ];
     bench.iter(|| {
-        for _ in 0..99 {
-            let mut v = vec![0., 0., 50., 0., 50., 50., 0., 50.];
-            let h = vec![10., 10., 40., 10., 40., 40., 10., 40.];
-            v.extend(h);
-            let triangles = earcutr::earcut(&v, &vec![4], 2);
-            //let triangles= vec![3,0,4,5,4,0,3,4,7,5,0,1,2,3,7,6,5,1,2,7,6,6,1,2];
-            assert!(
-                triangles
-                    == vec![3, 0, 4, 5, 4, 0, 3, 4, 7, 5, 0, 1, 2, 3, 7, 6, 5, 1, 2, 7, 6, 6, 1, 2]
-            );
-        }
+        let (_vertices, _holes, _dimensions) = earcutr::flatten(&v);
     })
 }
 
-fn flatten(bench: &mut Bencher) {
+fn bench_indices_2d(bench: &mut Bencher) {
     bench.iter(|| {
-        for _ in 0..99 {
-            let v = vec![
-                vec![vec![0., 0.], vec![1., 0.], vec![1., 1.], vec![0., 1.]], // outer ring
-                vec![vec![1., 1.], vec![3., 1.], vec![3., 3.]],               // hole ring
-            ];
-            let (vertices, holes, dimensions) = earcutr::flatten(&v);
-            let triangles = earcutr::earcut(&vertices, &holes, dimensions);
-            assert!(triangles.len() == 9);
-        }
+        let _indices = earcutr::earcut(
+            &vec![10.0, 0.0, 0.0, 50.0, 60.0, 60.0, 70.0, 10.0],
+            &vec![],
+            2,
+        );
     })
 }
 
-fn badhole(bench: &mut Bencher) {
+fn bench_indices_3d(bench: &mut Bencher) {
     bench.iter(|| {
-        for _ in 0..99 {
-            let v = vec![
-                vec![
-                    vec![810., 2828.],
-                    vec![818., 2828.],
-                    vec![832., 2818.],
-                    vec![844., 2806.],
-                    vec![855., 2808.],
-                    vec![866., 2816.],
-                    vec![867., 2824.],
-                    vec![876., 2827.],
-                    vec![883., 2834.],
-                    vec![875., 2834.],
-                    vec![867., 2840.],
-                    vec![878., 2838.],
-                    vec![889., 2844.],
-                    vec![880., 2847.],
-                    vec![870., 2847.],
-                    vec![860., 2864.],
-                    vec![852., 2879.],
-                    vec![847., 2867.],
-                    vec![810., 2828.],
-                    vec![810., 2828.],
-                ],
-                vec![
-                    vec![818., 2834.],
-                    vec![823., 2833.],
-                    vec![831., 2828.],
-                    vec![839., 2829.],
-                    vec![839., 2837.],
-                    vec![851., 2845.],
-                    vec![847., 2835.],
-                    vec![846., 2827.],
-                    vec![847., 2827.],
-                    vec![837., 2827.],
-                    vec![840., 2815.],
-                    vec![835., 2823.],
-                    vec![818., 2834.],
-                    vec![818., 2834.],
-                ],
-                vec![
-                    vec![857., 2846.],
-                    vec![864., 2850.],
-                    vec![866., 2839.],
-                    vec![857., 2846.],
-                    vec![857., 2846.],
-                ],
-                vec![
-                    vec![848., 2863.],
-                    vec![848., 2866.],
-                    vec![854., 2852.],
-                    vec![846., 2854.],
-                    vec![847., 2862.],
-                    vec![838., 2851.],
-                    vec![838., 2859.],
-                    vec![848., 2863.],
-                    vec![848., 2863.],
-                ],
-            ];
-
-            let (vertices, holes, dimensions) = earcutr::flatten(&v);
-            let triangles = earcutr::earcut(&vertices, &holes, dimensions);
-            assert!(triangles.len() == 126);
-        }
+        let _indices = earcutr::earcut(
+            &vec![
+                10.0, 0.0, 0.0, 0.0, 50.0, 0.0, 60.0, 60.0, 0.0, 70.0, 10.0, 0.0,
+            ],
+            &vec![],
+            3,
+        );
     })
 }
 
-benchmark_group!(benches, quadrilateral, hole, flatten, badhole);
+fn bench_empty(bench: &mut Bencher) {
+    bench.iter(|| {
+        let _indices = earcutr::earcut(&vec![], &vec![], 2);
+    })
+}
+
+// file based tests
+
+fn bench_building(bench: &mut Bencher) {
+	let nm="building";
+    let (data, holeidxs, dimensions) = load_json(nm);
+    let mut triangles = Vec::new();
+    bench.iter(|| {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    });
+    mkoutput(nm,triangles);
+}
+
+fn bench_dude(bench: &mut Bencher) {
+	let nm="dude";
+    let (data, holeidxs, dimensions) = load_json(nm);
+    let mut triangles = Vec::new();
+    bench.iter(|| {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    });
+    mkoutput(nm,triangles);
+}
+
+fn bench_water(bench: &mut Bencher) {
+    let nm="water";
+let (data, holeidxs, dimensions) = load_json(nm);
+    let mut triangles = Vec::new();
+    bench.iter(|| {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    });
+    mkoutput(nm,triangles);
+}
+
+fn bench_water2(bench: &mut Bencher) {
+	let nm="water2";
+    let (data, holeidxs, dimensions) = load_json(nm);
+    let mut triangles = Vec::new();
+    bench.iter(|| {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    });
+    mkoutput(nm,triangles);
+}
+
+fn bench_water3(bench: &mut Bencher) {
+	let nm="water3";
+
+    let (data, holeidxs, dimensions) = load_json(nm);
+    let mut triangles = Vec::new();
+    bench.iter(|| {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    });
+    mkoutput(nm,triangles);
+}
+
+fn bench_water3b(bench: &mut Bencher) {
+	let nm="water3b";
+
+    let (data, holeidxs, dimensions) = load_json(nm);
+    let mut triangles = Vec::new();
+    bench.iter(|| {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    });
+    mkoutput(nm,triangles);
+}
+
+fn bench_water4(bench: &mut Bencher) {
+	let nm="water4";
+
+    let (data, holeidxs, dimensions) = load_json(nm);
+    let mut triangles = Vec::new();
+    bench.iter(|| {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    });
+    mkoutput(nm,triangles);
+}
+
+fn bench_water_huge(bench: &mut Bencher) {
+	let nm="water-huge";
+
+    let (data, holeidxs, dimensions) = load_json(nm);
+    let mut triangles = Vec::new();
+    bench.iter(|| {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    });
+    mkoutput(nm,triangles);
+}
+
+fn bench_water_huge2(bench: &mut Bencher) {
+	let nm="water-huge2";
+    let (data, holeidxs, dimensions) = load_json(nm);
+    let mut triangles = Vec::new();
+    bench.iter(|| {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    });
+    mkoutput(nm,triangles);
+}
+
+fn bench_degenerate(bench: &mut Bencher) {
+	let nm="degenerate";
+    let (data, holeidxs, dimensions) = load_json(nm);
+    let mut triangles = Vec::new();
+    bench.iter(|| {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    });
+    mkoutput(nm,triangles);
+}
+
+fn bench_bad_hole(bench: &mut Bencher) {
+	let nm="bad-hole";
+    let (data, holeidxs, dimensions) = load_json(nm);
+    let mut triangles = Vec::new();
+    bench.iter(|| {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    });
+    mkoutput(nm,triangles);
+}
+
+fn bench_empty_square(bench: &mut Bencher) {
+	let nm="empty-square";
+    let (data, holeidxs, dimensions) = load_json(nm);
+    let mut triangles = Vec::new();
+    bench.iter(|| {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    });
+    mkoutput(nm,triangles);
+}
+
+fn bench_issue16(bench: &mut Bencher) {
+	let nm="issue16";
+    let (data, holeidxs, dimensions) = load_json(nm);
+    let mut triangles = Vec::new();
+    bench.iter(|| {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    });
+    mkoutput(nm,triangles);
+}
+
+fn bench_issue17(bench: &mut Bencher) {
+	let nm="issue17";
+    let (data, holeidxs, dimensions) = load_json(nm);
+    let mut triangles = Vec::new();
+    bench.iter(|| {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    });
+    mkoutput(nm,triangles);
+}
+
+fn bench_steiner(bench: &mut Bencher) {
+	let nm="steiner";
+    let (data, holeidxs, dimensions) = load_json(nm);
+    let mut triangles = Vec::new();
+    bench.iter(|| {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    });
+    mkoutput(nm,triangles);
+}
+
+fn bench_issue29(bench: &mut Bencher) {
+	let nm="issue29";
+    let (data, holeidxs, dimensions) = load_json(nm);
+
+    let mut triangles = Vec::new();
+    bench.iter(|| {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    });
+    mkoutput(nm,triangles);
+}
+
+fn bench_issue34(bench: &mut Bencher) {
+	let nm="issue34";
+    let (data, holeidxs, dimensions) = load_json(nm);
+    let mut triangles = Vec::new();
+    bench.iter(|| {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    });
+    mkoutput(nm,triangles);
+}
+
+fn bench_issue35(bench: &mut Bencher) {
+	let nm="issue35";
+    let (data, holeidxs, dimensions) = load_json(nm);
+    let mut triangles = Vec::new();
+    bench.iter(|| {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    });
+    mkoutput(nm,triangles);
+}
+
+fn bench_self_touching(bench: &mut Bencher) {
+	let nm="self-touching";
+    let (data, holeidxs, dimensions) = load_json(nm);
+    let mut triangles = Vec::new();
+    bench.iter(|| {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    });
+    mkoutput(nm,triangles);
+}
+
+fn bench_outside_ring(bench: &mut Bencher) {
+	let nm="outside-ring";
+    let (data, holeidxs, dimensions) = load_json(nm);
+    let mut triangles = Vec::new();
+    bench.iter(|| {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    });
+    mkoutput(nm,triangles);
+}
+
+fn bench_simplified_us_border(bench: &mut Bencher) {
+	let nm="simplified-us-border";
+    let (data, holeidxs, dimensions) = load_json(nm);
+    let mut triangles = Vec::new();
+    bench.iter(|| {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    });
+    mkoutput(nm,triangles);
+}
+
+fn bench_touching_holes(bench: &mut Bencher) {
+	let nm="touching-holes";
+    let (data, holeidxs, dimensions) = load_json(nm);
+    let mut triangles = Vec::new();
+    bench.iter(|| {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    });
+    mkoutput(nm,triangles);
+}
+
+fn bench_hole_touching_outer(bench: &mut Bencher) {
+	let nm="hole-touching-outer";
+    let (data, holeidxs, dimensions) = load_json(nm);
+    let mut triangles = Vec::new();
+    bench.iter(|| {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    });
+    mkoutput(nm,triangles);
+}
+
+fn bench_hilbert(bench: &mut Bencher) {
+	let nm="hilbert";
+    let (data, holeidxs, dimensions) = load_json(nm);
+    let mut triangles = Vec::new();
+    bench.iter(|| {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    });
+    mkoutput(nm,triangles);
+}
+
+fn bench_issue45(bench: &mut Bencher) {
+	let nm="issue45";
+    let (data, holeidxs, dimensions) = load_json(nm);
+    let mut triangles = Vec::new();
+    bench.iter(|| {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    });
+    mkoutput(nm,triangles);
+}
+
+fn bench_eberly_3(bench: &mut Bencher) {
+	let nm="eberly-3";
+    let (data, holeidxs, dimensions) = load_json(nm);
+    let mut triangles = Vec::new();
+    bench.iter(|| {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    });
+    mkoutput(nm,triangles);
+}
+
+fn bench_eberly_6(bench: &mut Bencher) {
+	let nm="eberly-6";
+    let (data, holeidxs, dimensions) = load_json(nm);
+    let mut triangles = Vec::new();
+    bench.iter(|| {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    });
+    mkoutput(nm,triangles);
+}
+
+fn bench_issue52(bench: &mut Bencher) {
+	let nm="issue52";
+    let (data, holeidxs, dimensions) = load_json(nm);
+    let mut triangles = Vec::new();
+    bench.iter(|| {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    });
+    mkoutput(nm,triangles);
+}
+
+fn bench_shared_points(bench: &mut Bencher) {
+	let nm="shared-points";
+    let (data, holeidxs, dimensions) = load_json(nm);
+    let mut triangles = Vec::new();
+    bench.iter(|| {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    });
+    mkoutput(nm,triangles);
+}
+
+fn bench_bad_diagonals(bench: &mut Bencher) {
+	let nm="bad-diagonals";
+    let (data, holeidxs, dimensions) = load_json(nm);
+    let mut triangles = Vec::new();
+    bench.iter(|| {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    });
+    mkoutput(nm,triangles);
+}
+
+fn bench_issue83(bench: &mut Bencher) {
+	let nm="issue83";
+    let (data, holeidxs, dimensions) = load_json(nm);
+    let mut triangles = Vec::new();
+    bench.iter(|| {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    });
+    mkoutput(nm,triangles);
+}
+
+benchmark_group!(
+    benches,
+    bench_indices_3d,
+    bench_indices_2d,
+    bench_empty,
+    bench_quadrilateral,
+    bench_hole,
+    bench_flatten,
+    bench_bad_diagonals,
+    bench_bad_hole,
+    bench_building,
+    bench_degenerate,
+    bench_dude,
+    bench_eberly_3,
+    bench_eberly_6,
+    bench_empty_square,
+    bench_hilbert,
+    bench_hole_touching_outer,
+    bench_issue16,
+    bench_issue17,
+    bench_issue29,
+    bench_issue34,
+    bench_issue35,
+    bench_issue45,
+    bench_issue52,
+    bench_issue83,
+    bench_outside_ring,
+    bench_self_touching,
+    bench_shared_points,
+    bench_simplified_us_border,
+    bench_steiner,
+    bench_touching_holes,
+    bench_water_huge,
+    bench_water_huge2,
+    bench_water,
+    bench_water2,
+    bench_water3,
+    bench_water3b,
+    bench_water4,
+);
 benchmark_main!(benches);

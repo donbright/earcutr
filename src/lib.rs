@@ -2,7 +2,8 @@
 
 static NULL: usize = 0x777A91CC;
 static NULL32: u32 = 0xFFFFFFFF;
-static DEBUG: usize = 4;
+//static DEBUG: usize = 4;
+static DEBUG: usize = 0;
 static TESTHASH: bool = true;
 
 type NodeIdx = usize;
@@ -469,6 +470,7 @@ fn is_ear_hashed(ll: &mut LinkedLists, ear: usize, minx: f64, miny: f64, invsize
     true
 }
 
+
 fn filter_points(ll: &mut LinkedLists, start: NodeIdx, mut end: NodeIdx) -> NodeIdx {
     dlog!(4, "fn filter_points, eliminate colinear or duplicate points");
     if start == NULL {
@@ -485,19 +487,19 @@ fn filter_points(ll: &mut LinkedLists, start: NodeIdx, mut end: NodeIdx) -> Node
     let mut p = start;
     let mut again = false;
 
-//	println!("-------start end p {} {} {}",start,end,p);
-//	println!("ll {}",dump(&ll));
 
+	// this loop "wastes" calculations by going over the same points multiple
+	// times. however, altering the location of the 'end' node can disrupt
+	// the algorithm of other code that calls the filter_points function.
     loop {
-		println!("s:{} p:{} e:{} a:{}",start,p,end,again);
         again = false;
-        if !node!(ll, p).steiner 
-			&& ( equals(&node!(ll,p),&next!(ll,p)) || area(&prev!(ll, p), &node!(ll, p), &next!(ll, p)) == 0.0 )
+        if 	!node!(ll, p).steiner 
+			&& ( equals(&node!(ll,p),&next!(ll,p)) || 
+area(&prev!(ll, p), &node!(ll, p), &next!(ll, p)) == 0.0 )
         {
-			println!("remove {}",p);
             ll.remove_node(p);
             end = node!(ll, p).prev_idx;
-            p = end;;
+            p = end;
             if p == node!(ll, p).next_idx {
                 break;
             }
@@ -510,9 +512,8 @@ fn filter_points(ll: &mut LinkedLists, start: NodeIdx, mut end: NodeIdx) -> Node
         }
     }
 
-//	println!("start end p {} {} {}",start,end,p);
-//	println!("ll {}",dump(&ll));
 
+/*            end = node!(ll, end).prev_idx;
             end = node!(ll, end).prev_idx;
             end = node!(ll, end).prev_idx;
             end = node!(ll, end).prev_idx;
@@ -533,8 +534,7 @@ fn filter_points(ll: &mut LinkedLists, start: NodeIdx, mut end: NodeIdx) -> Node
             end = node!(ll, end).prev_idx;
             end = node!(ll, end).prev_idx;
             end = node!(ll, end).prev_idx;
-            end = node!(ll, end).prev_idx;
-            end = node!(ll, end).prev_idx;
+            end = node!(ll, end).prev_idx;*/
     dlog!(4, "fn filter points end {}", node!(ll, end).i);
     return end;
 }
@@ -1786,10 +1786,9 @@ mod tests {
 
         eliminate_holes(&mut ll, &body, &hole_indices, 0, 2);
 
-		println!("{}",dump(&ll));
 		for i in 0..13 {
 			if !ll.freelist.contains(&i) {
-		        println!("{} {} {}",i,cycle_len(&ll, i), body.len() / 2 + 2 + 2 );
+		        assert!(cycle_len(&ll, i)== body.len() / 2 + 2 + 2 );
 			}
 		}
     }
