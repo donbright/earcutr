@@ -190,17 +190,14 @@ $ firefox viz.html       # view in your favorite web browser (circa 2018)
 
 To run benchmarks:
 
-
 ```bash
-$ cargo bench
-...
-test bench_water                ... bench:  87,722,836 ns/iter (+/- 137,252,829)
-test bench_water2               ... bench:  53,580,964 ns/iter (+/- 11,148,189)
-test bench_water3               ... bench:     824,188 ns/iter (+/- 263,085)
-test bench_water3b              ... bench:      50,801 ns/iter (+/- 6,916)
-test bench_water4               ... bench:  10,818,110 ns/iter (+/- 3,320,698)
-test bench_water_huge           ... bench: 521,789,551 ns/iter (+/- 20,781,937)
-test bench_water_huge2          ... bench: 700,321,953 ns/iter (+/- 17,848,674)
+test bench_water                ... bench:  30,861,458 ns/iter (+/- 25,823,184)
+test bench_water2               ... bench:  15,770,016 ns/iter (+/- 13,578,769)
+test bench_water3               ... bench:     348,808 ns/iter (+/- 111,403)
+test bench_water3b              ... bench:      26,476 ns/iter (+/- 8,276)
+test bench_water4               ... bench:   3,853,433 ns/iter (+/- 824,702)
+test bench_water_huge           ... bench: 163,330,279 ns/iter (+/- 79,823,057)
+test bench_water_huge2          ... bench: 185,141,323 ns/iter (+/- 167,773,665)
 ```
 
 Bench note: As of this writing, benchmarking is not in Stable Rust, so 
