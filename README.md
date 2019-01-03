@@ -243,9 +243,10 @@ ____polygon_________________earcut.hpp_________libtessc++___
 If the calculations are correct in the Rust benchmark, and
 the conversion is correct, then the Rust code is usually
 comparable to C++, with the worst case a bit over twice as slow. 
-Against libtess it is also comparable.
+Against libtess it is sometimes quite a bit slower, but still
+similar to C++.
 
-Profiling
+#### Profiling
 
 - Valgrind 's callgrind: (see Cargo.toml)
 
