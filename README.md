@@ -1,4 +1,4 @@
-## Earcutr
+# Earcutr
 
 This is a single-threaded Polygon triangulation library, translated into 
 the Rust computer language from the original javascript code of MapBox's 
@@ -7,7 +7,7 @@ about the original javascript code.
 
 ![image showing an outline of a circle with a hole inside of it, with triangles inside of it](viz/circle.png "circle, earcut")
 
-#### Usage
+## Usage
 
 ```rust
 extern crate earcutr;
@@ -50,7 +50,7 @@ Deviation returns the relative difference between the total area of
 triangles and the area of the input polygon. `0` means the triangulation 
 is fully correct.
 
-#### Flattened vs multi-dimensional data
+## Flattened vs multi-dimensional data
 
 If your input is a multi-dimensional array you can convert it to the 
 format expected by Earcut with `earcut.flatten`. For example:
@@ -69,7 +69,7 @@ multi-dimensional data in a text based JSON format. There is example code under
 tests/integration_test.rs on how to parse JSON data. The test/fixtures test
 files are all multi-dimensional .json files.
 
-#### How it works: The algorithm
+## How it works: The algorithm
 
 The library implements a modified ear slicing algorithm,
 optimized by [z-order curve](http://en.wikipedia.org/wiki/Z-order_curve) hashing
@@ -81,7 +81,7 @@ It's based on ideas from
 [FIST: Fast Industrial-Strength Triangulation of Polygons](http://www.cosy.sbg.ac.at/~held/projects/triang/triang.html) by Martin Held
 and [Triangulation by Ear Clipping](http://www.geometrictools.com/Documentation/TriangulationByEarClipping.pdf) by David Eberly.
 
-#### Visual example
+### Visual example
 
 For example a rectangle could be given in GeoJSON format like so:
 
@@ -141,14 +141,24 @@ Data examples are included under tests/fixtures in json files.
 Visualization of test results is generated under viz/testoutput and can
 be viewed in a web browser by opening viz/viz.html
 
-#### Tradeoffs
+### Coordinate number type
 
-This triangulator is built primarily as an exrcise in porting javascript
-to Rust. It is relatively simple and of reasonable speed. It is unknown
-if it is as fast as the original javascript code.
+The coordinate type in this code is 64-bit floating point. Note that 
+32-bit floating point will fail the tests because the test data files 
+have numbers that cannot be held with full precision in 32 bits, like 
+the base 10 number 537629.886026485, which gets rounded to 537629.875 
+during conversion from base 10 to 32-bit base 2.
 
-If you want down-to-the-metal code, there is a C++ port of the earcut
-javascript code, see the link at the end of this README.
+
+### Tradeoffs
+
+This triangulator is built primarily as an exercise in porting 
+javascript to Rust. It is supposed to produce exacly the same output as 
+the javascript version, thanks to the test data supplied with the 
+original javascript code.. It is relatively simple and of reasonable 
+speed. If the benchmarks below are correct, the speed is comparable to 
+the C++ version of earcut, depending on the data, with the worst case 
+about two or three times slower.
 
 If you want to get correct triangulation even on very bad data with lots 
 of self-intersections and earcutr is not precise enough, take a look at 
@@ -158,15 +168,7 @@ You may also want to consider pre-processing the polygon data with
 [Angus J's Clipper](http://angusj.com/delphi/clipper.php) which uses 
 Vatti's Algorithm to clean up 'polygon soup' type of data.
 
-#### Coordinate number type
-
-The coordinate type in this code is 64-bit floating point. Note that 
-32-bit floating point will fail the tests because the test data files 
-have numbers that cannot be held with full precision in 32 bits, like 
-the base 10 number 537629.886026485, which gets rounded to 537629.875 
-during conversion from base 10 to 32-bit base 2.
-
-#### These algorithms are based on linked lists, is that difficult in Rust?
+### These algorithms are based on linked lists, is that difficult in Rust?
 
 Yes. [A. Beinges's "Too Many Lists"](https://cglab.ca/~abeinges/blah/too-many-lists/book/) 
 shows how to do Linked Lists in Rust.
@@ -175,9 +177,9 @@ However this code implements a Circular Doubly Linked List entirely on
 top of a Rust Vector, so that there is no unsafe code, and no reference 
 cycles. This does not use Rc, Box, Arc, etc. The pointers in normal 
 Linked List Node code have been replaced by integers which index into a 
-single Vector of Nodes stored in LinkedLists struct..
+single Vector of Nodes stored in LinkedLists struct.
 
-#### Tests, Benchmarks
+## Tests, Benchmarks
 
 To run tests:
 
@@ -204,7 +206,7 @@ test bench_water_huge2          ... bench:  99,433,022 ns/iter (+/- 4,928,094)
 Bench note: As of this writing, benchmarking is not in Stable Rust, so 
 this project uses an alternative, https://docs.rs/bencher/0.1.5/bencher/
 
-Speed vs C++:
+### Speed vs C++:
 
 Mapbox has a C++ port of earcut.hpp, with a built in benchmarker, measured
 in 'ops per second'. For water tests:
@@ -239,10 +241,9 @@ ____polygon_________________earcut.hpp_________libtessc++___
 ```
 
 So currently this code varies, sometimes its a bit slower than
-the C++ version of Earcut, sometimes a bit faster... and
-against libtess we find the same. Worst seems to be about twice
-as slow (water).
-
+the C++ version of Earcut, sometimes a bit faster, with the worst
+case (water) being about two to three times slower. Against 
+libtess it is also comparable.
 
 Profiling
 
@@ -269,7 +270,7 @@ sudo perf record  target/release/deps/speedtest-bc0e4fb32ac081fc  dude
 sudo perf report
 ```
 
-#### In other languages
+## In other languages
 
 - [mapbox/earcut](https://github.com/mapbox/earcut) the Original javascript
 - [mapbox/earcut.hpp](https://github.com/mapbox/earcut.hpp) C++11

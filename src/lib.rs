@@ -278,7 +278,7 @@ fn earcut_linked(
             test = is_ear(ll, ear);
         }
         if testhash {
-//            assert!(is_ear(ll, ear) == is_ear_hashed(ll, ear, minx, miny, invsize));
+            assert!(is_ear(ll, ear) == is_ear_hashed(ll, ear, minx, miny, invsize));
         }
         if test {
             // cut off the triangle
@@ -408,14 +408,13 @@ fn sort_linked(ll: &mut LinkedLists, inlist: NodeIdx) {
 // check whether a polygon node forms a valid ear with adjacent nodes
 fn is_ear(ll: &LinkedLists, ear: usize) -> bool {
     let (a, b, c) = (&prev!(ll, ear), &node!(ll, ear), &next!(ll, ear));
-	let r = match area(a, b, c) >= 0.0 {
+	match area(a, b, c) >= 0.0 {
         true => false, // reflex, cant be ear
         false => !ll.iter_range(c.next_idx..a.idx).any(|p| {
             point_in_triangle(&a, &b, &c, &p)
                 && (area(&prev!(ll, p.idx), &p, &next!(ll, p.idx)) >= 0.0)
         }),
-    };
-r
+    }
 }
 
 fn is_ear_hashed(ll: &mut LinkedLists, ear: usize, minx: f64, miny: f64, invsize: f64) -> bool {
@@ -437,6 +436,7 @@ fn is_ear_hashed(ll: &mut LinkedLists, ear: usize, minx: f64, miny: f64, invsize
     let mut p = node!(ll, ear).prevz_idx;
     let mut n = node!(ll, ear).nextz_idx;
 
+    // strangely, compiler does not auto optimize this.
     #[inline(always)]
     fn earcheck(ll: &LinkedLists, a: &Node, b: &Node, c: &Node, p: usize) -> bool {
         (p != a.idx)
@@ -444,6 +444,7 @@ fn is_ear_hashed(ll: &mut LinkedLists, ear: usize, minx: f64, miny: f64, invsize
             && point_in_triangle(&a, &b, &c, &node!(ll, p))
             && area(&prev!(ll, p), &node!(ll, p), &next!(ll, p)) >= 0.0
     }
+
 
     while (p != NULL) && (node!(ll, p).z >= min_z) && (n != NULL) && (node!(ll, n).z <= max_z) {
         dlog!(18, "look for points inside the triangle in both directions");
