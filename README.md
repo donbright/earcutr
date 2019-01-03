@@ -194,6 +194,8 @@ $ firefox viz.html       # view in your favorite web browser (circa 2018)
 To run benchmarks:
 
 ```bash
+$ cargo bench
+...
 test bench_water                ... bench:  11,160,594 ns/iter (+/- 131,164)
 test bench_water2               ... bench:   5,863,544 ns/iter (+/- 41,535)
 test bench_water3               ... bench:     177,919 ns/iter (+/- 708)
@@ -206,7 +208,7 @@ test bench_water_huge2          ... bench:  99,433,022 ns/iter (+/- 4,928,094)
 Bench note: As of this writing, benchmarking is not in Stable Rust, so 
 this project uses an alternative, https://docs.rs/bencher/0.1.5/bencher/
 
-### Speed vs C++:
+### Speed of this Rust code vs earcut.hpp C++ code
 
 Mapbox has a C++ port of earcut.hpp, with a built in benchmarker, measured
 in 'ops per second'. For water tests, it reports like so on an old HP Laptop:
