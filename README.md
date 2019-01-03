@@ -192,13 +192,13 @@ $ firefox viz.html       # view in your favorite web browser (circa 2018)
 To run benchmarks:
 
 ```bash
-test bench_water                ... bench:  30,861,458 ns/iter (+/- 25,823,184)
-test bench_water2               ... bench:  15,770,016 ns/iter (+/- 13,578,769)
-test bench_water3               ... bench:     348,808 ns/iter (+/- 111,403)
-test bench_water3b              ... bench:      26,476 ns/iter (+/- 8,276)
-test bench_water4               ... bench:   3,853,433 ns/iter (+/- 824,702)
-test bench_water_huge           ... bench: 163,330,279 ns/iter (+/- 79,823,057)
-test bench_water_huge2          ... bench: 185,141,323 ns/iter (+/- 167,773,665)
+test bench_water                ... bench:  15,802,370 ns/iter (+/- 28,501)
+test bench_water2               ... bench:   9,496,571 ns/iter (+/- 40,302)
+test bench_water3               ... bench:     244,109 ns/iter (+/- 457)
+test bench_water3b              ... bench:       8,308 ns/iter (+/- 24)
+test bench_water4               ... bench:   2,618,759 ns/iter (+/- 11,480)
+test bench_water_huge           ... bench: 108,615,608 ns/iter (+/- 2,292,550)
+test bench_water_huge2          ... bench: 122,584,248 ns/iter (+/- 3,436,452)
 ```
 
 Bench note: As of this writing, benchmarking is not in Stable Rust, so 
@@ -221,13 +221,13 @@ ____polygon_________________earcut.hpp_________libtessc++___
 ------------------------------------------------------------
 19 ops in 1 second, is 
 19 iterations in 1,000,000,000 nanoseconds. 
-1,000,000,000 / 19 -> 52,631,578 nanoseconds/iteration
+1,000,000,000 / 19 -> 52,631,578 nanoseconds/iteration (water_huge)
 41345 ops/s -> 24,186 ns/iter  (water3b)
 784 ops/s -> 1,275,510 ns/iter (water4)
 231 ops/s -> 4,329,004 ns/iter (water)
 ```
 
-So currently this code varies, usually 3-4 times slower than C++, 
+So currently this code varies, usually 2 times slower than C++, 
 sometimes worse, sometimes the same. It depends on the input. That is 
 not necessarily a reflection on Rust but on this port.
 
