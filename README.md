@@ -192,13 +192,13 @@ $ firefox viz.html       # view in your favorite web browser (circa 2018)
 To run benchmarks:
 
 ```bash
-test bench_water                ... bench:  15,802,370 ns/iter (+/- 28,501)
-test bench_water2               ... bench:   9,496,571 ns/iter (+/- 40,302)
-test bench_water3               ... bench:     244,109 ns/iter (+/- 457)
-test bench_water3b              ... bench:       8,308 ns/iter (+/- 24)
-test bench_water4               ... bench:   2,618,759 ns/iter (+/- 11,480)
-test bench_water_huge           ... bench: 108,615,608 ns/iter (+/- 2,292,550)
-test bench_water_huge2          ... bench: 122,584,248 ns/iter (+/- 3,436,452)
+test bench_water                ... bench:  11,160,594 ns/iter (+/- 131,164)
+test bench_water2               ... bench:   5,863,544 ns/iter (+/- 41,535)
+test bench_water3               ... bench:     177,919 ns/iter (+/- 708)
+test bench_water3b              ... bench:       8,161 ns/iter (+/- 91)
+test bench_water4               ... bench:   1,803,797 ns/iter (+/- 6,707)
+test bench_water_huge           ... bench:  85,676,415 ns/iter (+/- 3,918,430)
+test bench_water_huge2          ... bench:  99,433,022 ns/iter (+/- 4,928,094)
 ```
 
 Bench note: As of this writing, benchmarking is not in Stable Rust, so 
@@ -207,7 +207,7 @@ this project uses an alternative, https://docs.rs/bencher/0.1.5/bencher/
 Speed vs C++:
 
 Mapbox has a C++ port of earcut.hpp, with a built in benchmarker, measured
-in 'ops per second'. For water_huge:
+in 'ops per second'. For water tests:
 
 ```bash
 ____polygon_________________earcut.hpp_________libtessc++___
@@ -219,17 +219,29 @@ ____polygon_________________earcut.hpp_________libtessc++___
 | water_huge     |           19 ops/s |           27 ops/s |
 | water_huge2    |            8 ops/s |           36 ops/s |
 ------------------------------------------------------------
+
+Rust bench measures in nanoseconds per iteration.
+C++ Earcut measures in iterations per second. To convert:
 19 ops in 1 second, is 
 19 iterations in 1,000,000,000 nanoseconds. 
-1,000,000,000 / 19 -> 52,631,578 nanoseconds/iteration (water_huge)
-41345 ops/s -> 24,186 ns/iter  (water3b)
-784 ops/s -> 1,275,510 ns/iter (water4)
-231 ops/s -> 4,329,004 ns/iter (water)
+1,000,000,000 / 19 -> 52,631,578 nanoseconds/iteration
+
+____polygon_________________earcut.hpp_________libtessc++___
+| water          |  4,329,004 ns/iter | 14,285,714 ns/iter |
+| water2         |  5,464,480 ns/iter |  3,076,923 ns/iter |
+| water3         |    238,208 ns/iter |    390,930 ns/iter |
+| water3b        |     24,186 ns/iter |     64,884 ns/iter |
+| water4         |  1,275,510 ns/iter |  1,686,340 ns/iter |
+| water_huge     | 52,631,578 ns/iter | 37,037,037 ns/iter |
+| water_huge2    |125,000,000 ns/iter | 27,777,777 ns/iter |
+------------------------------------------------------------
+
 ```
 
-So currently this code varies, usually 2 times slower than C++, 
-sometimes worse, sometimes the same. It depends on the input. That is 
-not necessarily a reflection on Rust but on this port.
+So currently this code varies, sometimes its a bit slower than
+the C++ version of Earcut, sometimes a bit faster... and
+against libtess we find the same. Worst seems to be about twice
+as slow (water).
 
 #### In other languages
 
