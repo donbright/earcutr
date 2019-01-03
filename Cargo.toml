@@ -12,3 +12,13 @@ bencher ="0.1.5"
 [[bench]]
 name = "speedtest"
 harness = false
+
+# for profiling with standard tools, like
+# Valgrind's Callgrind or Perf
+#[profile.release] 
+#debug = true
+
+# for profiling with CpuProfiler
+#[dependencies]
+#cpuprofiler = "0.0.3"
+

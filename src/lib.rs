@@ -1,5 +1,8 @@
 #![allow(dead_code)]
 
+//extern crate cpuprofiler;
+//use cpuprofiler::PROFILER;
+
 static NULL: usize = 0x777A91CC;
 static NULL32: u32 = 0xFFFFFFFF;
 //static DEBUG: usize = 4;
@@ -275,7 +278,7 @@ fn earcut_linked(
             test = is_ear(ll, ear);
         }
         if testhash {
-            assert!(is_ear(ll, ear) == is_ear_hashed(ll, ear, minx, miny, invsize));
+//            assert!(is_ear(ll, ear) == is_ear_hashed(ll, ear, minx, miny, invsize));
         }
         if test {
             // cut off the triangle
@@ -405,13 +408,14 @@ fn sort_linked(ll: &mut LinkedLists, inlist: NodeIdx) {
 // check whether a polygon node forms a valid ear with adjacent nodes
 fn is_ear(ll: &LinkedLists, ear: usize) -> bool {
     let (a, b, c) = (&prev!(ll, ear), &node!(ll, ear), &next!(ll, ear));
-    match area(a, b, c) >= 0.0 {
+	let r = match area(a, b, c) >= 0.0 {
         true => false, // reflex, cant be ear
         false => !ll.iter_range(c.next_idx..a.idx).any(|p| {
             point_in_triangle(&a, &b, &c, &p)
                 && (area(&prev!(ll, p.idx), &p, &next!(ll, p.idx)) >= 0.0)
         }),
-    }
+    };
+r
 }
 
 fn is_ear_hashed(ll: &mut LinkedLists, ear: usize, minx: f64, miny: f64, invsize: f64) -> bool {
@@ -421,17 +425,19 @@ fn is_ear_hashed(ll: &mut LinkedLists, ear: usize, minx: f64, miny: f64, invsize
         return false;
     }
 
-    let mut bbox = BoundingBox::new(&a);
-    bbox.expand(&b);
-    bbox.expand(&c);
+    let bbox_maxx = f64::max(a.x,f64::max(b.x,c.x));
+    let bbox_maxy = f64::max(a.y,f64::max(b.y,c.y));
+    let bbox_minx = f64::min(a.x,f64::min(b.x,c.x));
+    let bbox_miny = f64::min(a.y,f64::min(b.y,c.y));
 
     // z-order range for the current triangle bbox;
-    let min_z = zorder(bbox.minx, bbox.miny, minx, miny, invsize);
-    let max_z = zorder(bbox.maxx, bbox.maxy, minx, miny, invsize);
+    let min_z = zorder(bbox_minx, bbox_miny, minx, miny, invsize);
+    let max_z = zorder(bbox_maxx, bbox_maxy, minx, miny, invsize);
 
     let mut p = node!(ll, ear).prevz_idx;
     let mut n = node!(ll, ear).nextz_idx;
 
+    #[inline(always)]
     fn earcheck(ll: &LinkedLists, a: &Node, b: &Node, c: &Node, p: usize) -> bool {
         (p != a.idx)
             && (p != c.idx)

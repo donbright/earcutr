@@ -231,6 +231,32 @@ So currently this code varies, usually 3-4 times slower than C++,
 sometimes worse, sometimes the same. It depends on the input. That is 
 not necessarily a reflection on Rust but on this port.
 
+
+Profiling
+
+- Valgrind 's callgrind: (see Cargo.toml)
+
+```bash
+sudo apt install valgrind
+cargo bench dude # find the binary name "Running: target/release/..."
+valgrind --tool=callgrind target/release/deps/speedtest-bc0e4fb32ac081fc dude
+callgrind_annotate callgrind.out.6771
+```
+
+- CpuProfiler 
+
+From AtheMathmo https://github.com/AtheMathmo/cpuprofiler
+
+- Perf
+
+https://perf.wiki.kernel.org/index.php/Tutorial
+
+```bash
+sudo perf stat target/release/deps/speedtest-bc0e4fb32ac081fc  dude
+sudo perf record  target/release/deps/speedtest-bc0e4fb32ac081fc  dude
+sudo perf report
+```
+
 #### In other languages
 
 - [mapbox/earcut](https://github.com/mapbox/earcut) the Original javascript

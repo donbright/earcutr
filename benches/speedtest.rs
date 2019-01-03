@@ -13,6 +13,9 @@ use std::fs::OpenOptions;
 use std::io::Read;
 use std::io::Write;
 
+//extern crate cpuprofiler;
+//use cpuprofiler::PROFILER;
+
 // this is to "force" optimized code to measure results, by outputting
 fn mkoutput(filename_w_dashes: &str, triangles: Vec<usize>) {
     let filename = str::replace(filename_w_dashes, "-", "_");
@@ -225,9 +228,14 @@ fn bench_water_huge(bench: &mut Bencher) {
 
     let (data, holeidxs, dimensions) = load_json(nm);
     let mut triangles = Vec::new();
-    bench.iter(|| {
+//PROFILER.lock().unwrap().start("./earcutr.profile").unwrap();
+	bench.iter(|| {
+//	for i in 0..99 {
         triangles = earcutr::earcut(&data, &holeidxs, dimensions);
-    });
+//	}
+	   });
+//PROFILER.lock().unwrap().stop().unwrap();
+
     mkoutput(nm, triangles);
 }
 
