@@ -209,7 +209,7 @@ this project uses an alternative, https://docs.rs/bencher/0.1.5/bencher/
 ### Speed vs C++:
 
 Mapbox has a C++ port of earcut.hpp, with a built in benchmarker, measured
-in 'ops per second'. For water tests:
+in 'ops per second'. For water tests, it reports like so on an old HP Laptop:
 
 ```bash
 ____polygon_________________earcut.hpp_________libtessc++___
@@ -240,10 +240,10 @@ ____polygon_________________earcut.hpp_________libtessc++___
 
 ```
 
-So currently this code varies, sometimes its a bit slower than
-the C++ version of Earcut, sometimes a bit faster, with the worst
-case (water) being about two to three times slower. Against 
-libtess it is also comparable.
+If the calculations are correct in the Rust benchmark, and
+the conversion is correct, then the Rust code is usually
+comparable to C++, with the worst case a bit over twice as slow. 
+Against libtess it is also comparable.
 
 Profiling
 
