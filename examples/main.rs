@@ -1,8 +1,3 @@
-/*
-Note: This module uses the 'unofficial' bench that works with Stable Rust as
-of 2018. This may conflict with "official" bench which is in "Nightly" Rust
-*/
-#[macro_use]
 extern crate earcutr;
 extern crate serde;
 extern crate serde_json;
@@ -10,15 +5,11 @@ use std::fs::File;
 use std::fs::OpenOptions;
 use std::io::Read;
 use std::io::Write;
-use std::time::{Instant};
+use std::time::Instant;
 
-//extern crate cpuprofiler;
-//use cpuprofiler::PROFILER;
-
-// this is to "force" optimized code to measure results, by outputting
 fn mkoutput(filename_w_dashes: &str, triangles: Vec<usize>) {
     let filename = str::replace(filename_w_dashes, "-", "_");
-    let outfile = &format!("benches/benchoutput/{}.js", filename);
+    let outfile = &format!("examples/output/{}.js", filename);
     match OpenOptions::new()
         .write(true)
         .create(true)
@@ -33,7 +24,8 @@ fn mkoutput(filename_w_dashes: &str, triangles: Vec<usize>) {
             0,
             triangles.len(),
             triangles
-        ).unwrap(),
+        )
+        .unwrap(),
     };
 }
 
@@ -94,27 +86,29 @@ fn load_json(testname: &str) -> (Vec<f64>, Vec<usize>, usize) {
     return earcutr::flatten(&xdata);
 }
 
-
 fn benchy(nm: &str) {
     let (data, holeidxs, dimensions) = load_json(nm);
     let mut triangles = Vec::new();
-	let now = Instant::now();
-let 	iters = 99u32;
+    let now = Instant::now();
+    let iters = 99u32;
 
-	println!("report for {}",nm);
-    for i in 0..iters {
-	    triangles = earcutr::earcut(&data, &holeidxs, dimensions);
+    println!("report for {}", nm);
+    for _ in 0..iters {
+        triangles = earcutr::earcut(&data, &holeidxs, dimensions);
     }
-	println!("{:?}",triangles);
-	println!("num tris {}",triangles.len()/3);
-	 println!("Duration: {} seconds and {} nanoseconds", 
-now.elapsed().as_secs(), now.elapsed().subsec_nanos());
-	println!("ns/iter {}",now.elapsed().subsec_nanos()/(iters));
+    println!("{:?}", triangles);
+    println!("num tris {}", triangles.len() / 3);
+    println!(
+        "Duration: {} seconds and {} nanoseconds",
+        now.elapsed().as_secs(),
+        now.elapsed().subsec_nanos()
+    );
+    println!("ns/iter {}", now.elapsed().subsec_nanos() / (iters));
 
-//    mkoutput(nm, triangles);
+    mkoutput(nm, triangles);
 }
 
 fn main() {
-	benchy("water");
-//	benchy("water2");
+    benchy("water");
+    //	benchy("water2");
 }
