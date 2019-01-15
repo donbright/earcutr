@@ -1,12 +1,12 @@
 #![allow(dead_code)]
 
-//extern crate cpuprofiler;
-//use cpuprofiler::PROFILER;
+extern crate rayon;
+use rayon::prelude::*;
 
 static NULL: usize = 0x777A91CC;
-static NULL32: i32 = 0x0000FFFF;
+static NULL32: i32 = std::i32::MAX;
 //static DEBUG: usize = 4;
-static DEBUG: usize = 0;
+static DEBUG: usize = 0; // dlogs get optimized away at 0
 
 type NodeIdx = usize;
 
@@ -446,7 +446,7 @@ fn is_ear_hashed(ll: &mut LinkedLists, ear: usize, minx: f64, miny: f64, invsize
     }
 
 
-    while (p != NULL) && (node!(ll, p).z >= min_z) && (n != NULL) && (node!(ll, n).z <= max_z) {
+/*    while (p != NULL) && (node!(ll, p).z >= min_z) && (n != NULL) && (node!(ll, n).z <= max_z) {
         dlog!(18, "look for points inside the triangle in both directions");
         if earcheck(ll, &a, &b, &c, p) {
             return false;
@@ -458,14 +458,14 @@ fn is_ear_hashed(ll: &mut LinkedLists, ear: usize, minx: f64, miny: f64, invsize
         }
         n = node!(ll, n).nextz_idx;
     }
-
+*/
     while (p != NULL) && (node!(ll, p).z >= min_z) {
         dlog!(18, "look for remaining points in decreasing z-order");
         if earcheck(ll, &a, &b, &c, p) {
             return false;
-        }
+	}
         p = node!(ll, p).prevz_idx;
-    }
+    };
 
     while n != NULL && node!(ll, n).z <= max_z {
         dlog!(18, "look for remaining points in increasing z-order");
@@ -474,7 +474,8 @@ fn is_ear_hashed(ll: &mut LinkedLists, ear: usize, minx: f64, miny: f64, invsize
         }
         n = node!(ll, n).nextz_idx;
     }
-    true
+
+   true
 }
 
 fn filter_points(ll: &mut LinkedLists, start: NodeIdx, mut end: NodeIdx) -> NodeIdx {
@@ -570,6 +571,8 @@ fn linked_list_add_contour(
 
 // z-order of a point given coords and inverse of the longer side of
 // data bbox
+
+#[inline(always)]
 fn zorder(xf: f64, yf: f64, minx: f64, miny: f64, invsize: f64) -> i32 {
     // coords are transformed into non-negative 15-bit integer range
     let mut x: i32 = ( 32767.0 *   ((xf - minx) * invsize)) as i32;

@@ -277,6 +277,8 @@ basically within margin of error, not worth typing the data out.
 
 #### Profiling
 
+- http://www.codeofview.com/fix-rs/2017/01/24/how-to-optimize-rust-programs-on-linux/
+
 - Valgrind 's callgrind: (see Cargo.toml, set debug=yes)
 
 ```bash
