@@ -134,8 +134,19 @@ the hole and the polygon, so that there is only a single "ring" cycle.
     cut> |_/_| |
          |_____|
 
-Then, an "ear cutting" algorithm is applied, although it is enhanced as
-described in the links above.
+Then, an "ear cutting" algorithm is applied. But not just any earcutting
+algorithm. As alluded to above, it creates a Z-curve in the space of the
+polygon, and sorts the points using that Z-curve.
+
+Basically, the linked list has links of 'next' and 'previous' node, 
+corresponding to the order given and processed by the main preparatory
+algorithm. But then each node also has a "next Z" and "prev Z" node,
+so that the list allows the program to quickly check whether points
+are Ears or not by looking "nearby" it first. 
+
+"Is Ear" is the key loop of any Earclip algorithm, it may 
+run this one function millions of times on a shape with a few thousand
+points.
 
 Data examples are included under tests/fixtures in json files.
 Visualization of test results is generated under viz/testoutput and can
@@ -155,10 +166,9 @@ during conversion from base 10 to 32-bit base 2.
 This triangulator is built primarily as an exercise in porting 
 javascript to Rust. It is supposed to produce exacly the same output as 
 the javascript version, thanks to the test data supplied with the 
-original javascript code.. It is relatively simple and of reasonable 
-speed. If the benchmarks below are correct, the speed is comparable to 
-the C++ version of earcut, depending on the data, with the worst case 
-about two or three times slower.
+original javascript code.. It is relatively simple. If the benchmarks 
+below are correct, the optimized Rust speed is comparable to the 
+optimized C++ version of earcut.
 
 If you want to get correct triangulation even on very bad data with lots 
 of self-intersections and earcutr is not precise enough, take a look at 
@@ -196,13 +206,13 @@ To run benchmarks:
 ```bash
 $ cargo bench
 ...
-test bench_water                ... bench:  11,160,594 ns/iter (+/- 131,164)
-test bench_water2               ... bench:   5,863,544 ns/iter (+/- 41,535)
-test bench_water3               ... bench:     177,919 ns/iter (+/- 708)
-test bench_water3b              ... bench:       8,161 ns/iter (+/- 91)
-test bench_water4               ... bench:   1,803,797 ns/iter (+/- 6,707)
-test bench_water_huge           ... bench:  85,676,415 ns/iter (+/- 3,918,430)
-test bench_water_huge2          ... bench:  99,433,022 ns/iter (+/- 4,928,094)
+test bench_water                ... bench:   2,168,282 ns/iter (+/- 34,776)
+test bench_water2               ... bench:   1,920,641 ns/iter (+/- 26,109)
+test bench_water3               ... bench:      85,089 ns/iter (+/- 551)
+test bench_water3b              ... bench:       8,440 ns/iter (+/- 21)
+test bench_water4               ... bench:     561,218 ns/iter (+/- 22,723)
+test bench_water_huge           ... bench:  30,987,850 ns/iter (+/- 463,670)
+test bench_water_huge2          ... bench:  63,462,059 ns/iter (+/- 1,707,658)
 ```
 
 Bench note: As of this writing, benchmarking is not in Stable Rust, so 
@@ -211,7 +221,8 @@ this project uses an alternative, https://docs.rs/bencher/0.1.5/bencher/
 ### Speed of this Rust code vs earcut.hpp C++ code
 
 Mapbox has a C++ port of earcut.hpp, with a built in benchmarker, measured
-in 'ops per second'. For water tests, it reports like so on an old HP Laptop:
+in 'ops per second'. For water tests, it reports like so on an old HP Laptop
+without optimizations turned on.
 
 ```bash
 ____polygon_________________earcut.hpp_________libtessc++___
@@ -224,39 +235,56 @@ ____polygon_________________earcut.hpp_________libtessc++___
 | water_huge2    |            8 ops/s |           36 ops/s |
 ------------------------------------------------------------
 
-Rust bench measures in nanoseconds per iteration.
-C++ Earcut measures in iterations per second. To convert:
-19 ops in 1 second, is 
-19 iterations in 1,000,000,000 nanoseconds. 
-1,000,000,000 / 19 -> 52,631,578 nanoseconds/iteration
+Now... you can hack around in the earcut.hpp CMakeLists.txt cmakefile, 
+and Turn On Optimization (gcc -O2). It becomes at least a 2x speedup:
 
 ____polygon_________________earcut.hpp_________libtessc++___
-| water          |  4,329,004 ns/iter | 14,285,714 ns/iter |
-| water2         |  5,464,480 ns/iter |  3,076,923 ns/iter |
-| water3         |    238,208 ns/iter |    390,930 ns/iter |
-| water3b        |     24,186 ns/iter |     64,884 ns/iter |
-| water4         |  1,275,510 ns/iter |  1,686,340 ns/iter |
-| water_huge     | 52,631,578 ns/iter | 37,037,037 ns/iter |
-| water_huge2    |125,000,000 ns/iter | 27,777,777 ns/iter |
+| water          |          546 ops/s |          104 ops/s |
+| water2         |          615 ops/s |          590 ops/s |
+| water3         |       18,818 ops/s |        6,499 ops/s |
+| water3b        |      239,026 ops/s |       49,645 ops/s |
+| water4         |        2,103 ops/s |        1,147 ops/s |
+| water_huge     |           38 ops/s |           38 ops/s |
+| water_huge2    |           18 ops/s |           50 ops/s |
 ------------------------------------------------------------
+
+Rust bench measures in nanoseconds per iteration.
+C++ Earcut measures in iterations per second. To convert:
+18 ops in 1 second, is 
+18 iterations in 1,000,000,000 nanoseconds. 
+1,000,000,000 / 18 -> 55,555,555 nanoseconds/iteration
+So, converting the above:
+
+____polygon______earcut.hpp_-O2__libtessc++_-O2___Rust_earcutr_release
+| water      |  1,831,501 ns/i  |  9,615,384 ns/i |   2,168,282 ns/i |
+| water2     |  1,626,016 ns/i  |  1,694,915 ns/i |   1,920,641 ns/i |
+| water3     |     53,140 ns/i  |    153,869 ns/i |      85,089 ns/i |
+| water3b    |      4,183 ns/i  |     20,143 ns/i |       8,440 ns/i |
+| water4     |    475,511 ns/i  |    871,839 ns/i |     561,218 ns/i |
+| water_huge | 26,315,789 ns/i  | 26,315,789 ns/i |  30,987,850 ns/i |
+| water_huge2| 55,555,555 ns/i  | 20,000,000 ns/i |  63,462,059 ns/i |
+----------------------------------------------------------------------
+nsi = nanoseconds per iteration
 
 ```
 
-If the calculations are correct in the Rust benchmark, and
-the conversion is correct, then the Rust code is usually
-comparable to C++, with the worst case a bit over twice as slow. 
-Against libtess it is sometimes quite a bit slower, but still
-similar to C++.
+If the calculations are correct in the Rust benchmark, and the 
+conversion is correct, then the Rust code is 10 to 20% slower than the 
+C++ port of earcut.hpp.
+
+But what about gcc's infamous -mnative? On this old machine, it was 
+basically within margin of error, not worth typing the data out.
 
 #### Profiling
 
-- Valgrind 's callgrind: (see Cargo.toml)
+- Valgrind 's callgrind: (see Cargo.toml, set debug=yes)
 
 ```bash
 sudo apt install valgrind
 cargo bench dude # find the binary name "Running: target/release/..."
 valgrind --tool=callgrind target/release/deps/speedtest-bc0e4fb32ac081fc dude
 callgrind_annotate callgrind.out.6771
+kcachegrind callgrind.out.6771
 ```
 
 - CpuProfiler 
@@ -273,8 +301,38 @@ sudo perf record  target/release/deps/speedtest-bc0e4fb32ac081fc  dude
 sudo perf report
 ```
 
+Profiling results:
+
+Profilers reveal the vast majority of time is spent inside is_earcut_hashed(),
+which is determining whether an ear is "really an ear" so that it may be
+cut without damaging the polygon.
+
+In particular the point_in_triangle and area function take up a lot of time.
+Since this port has them inside a single 'earchecker' function, that function
+was marked 'inline' resulting in a good speed boost. 
+
+The second major speed boost comes from Callgrind/kcachegrind in 
+particular revealed that the zorder() function was a source of some 
+consternation. In particular the conversion from floating point 64 bit 
+numbers in the input arguments, to the 32 bit integer, can be tricky 
+since Rust does not optimize that conversion like Clang or GCC would do.
+
+By transforming 
+
+    let mut x: i32 = 32767 * ((xf- minx) * invsize) as i32;
+    let mut y: i32 = 32767 * ((yf- miny) * invsize) as i32;
+
+Into
+
+    let mut x: i32 = ( 32767.0 *   ((xf - minx) * invsize)) as i32;
+    let mut y: i32 = ( 32767.0 *   ((yf - miny) * invsize)) as i32;
+
+A 13x speedup was achieved for the 'water' benchmark.
+
 ## In other languages
 
 - [mapbox/earcut](https://github.com/mapbox/earcut) the Original javascript
 - [mapbox/earcut.hpp](https://github.com/mapbox/earcut.hpp) C++11
 
+
+Thanks

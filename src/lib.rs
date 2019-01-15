@@ -4,7 +4,7 @@
 //use cpuprofiler::PROFILER;
 
 static NULL: usize = 0x777A91CC;
-static NULL32: u32 = 0xFFFFFFFF;
+static NULL32: i32 = 0x0000FFFF;
 //static DEBUG: usize = 4;
 static DEBUG: usize = 0;
 
@@ -17,7 +17,7 @@ struct Node {
     y: f64,           // vertex y coordinate
     prev_idx: usize,  // previous vertex node in a polygon ring
     next_idx: usize,  // next vertex node in a polygon ring
-    z: u32,           // z-order curve value
+    z: i32,           // z-order curve value
     prevz_idx: usize, // previous node in z-order
     nextz_idx: usize, // next node in z-order
     steiner: bool,    // indicates whether this is a steiner point
@@ -570,10 +570,12 @@ fn linked_list_add_contour(
 
 // z-order of a point given coords and inverse of the longer side of
 // data bbox
-fn zorder(xf: f64, yf: f64, minx: f64, miny: f64, invsize: f64) -> u32 {
+fn zorder(xf: f64, yf: f64, minx: f64, miny: f64, invsize: f64) -> i32 {
     // coords are transformed into non-negative 15-bit integer range
-    let mut x: u32 = 32767 * ((xf - minx) * invsize).round() as u32;
-    let mut y: u32 = 32767 * ((yf - miny) * invsize).round() as u32;
+    let mut x: i32 = ( 32767.0 *   ((xf - minx) * invsize)) as i32;
+    let mut y: i32 = ( 32767.0 *   ((yf - miny) * invsize)) as i32;
+   // let mut x: i32 = 32767 * ((xf- minx) * invsize) as i32;;
+//    let mut y: i32 = 32767 * ((yf- miny) * invsize) as i32;
 
     // todo ... big endian?
     x = (x | (x << 8)) & 0x00FF00FF;
@@ -1226,10 +1228,10 @@ mod tests {
         let endidx = startidx;
         let mut idx = startidx;
         let mut count = 0;
-        let mut state; // = 0u32;
+        let mut state; // = 0i32;
         loop {
             let n = ll.nodes[idx].clone();
-            state = 0; //horsh( state, n.i  as u32);
+            state = 0; //horsh( state, n.i  as i32);
             s.push_str(&format!(
                 " {:>3} {:>3} {:>3} {:>4} {:>4} {:>8.3} {:>8.3} {:>4} {:>4} {:>2} {:>2} {:>2}\n",
                 count,
