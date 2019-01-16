@@ -1,8 +1,5 @@
 #![allow(dead_code)]
 
-extern crate rayon;
-use rayon::prelude::*;
-
 static NULL: usize = 0x777A91CC;
 static NULL32: i32 = std::i32::MAX;
 //static DEBUG: usize = 4;
@@ -48,7 +45,14 @@ macro_rules! dlog {
 }
 macro_rules! node {
     ($ll:expr,$idx:expr) => {
-        $ll.nodes[$idx]
+	// unsafe{$ll.nodes.get_unchecked($idx)}
+		 $ll.nodes[$idx]
+    };
+}
+macro_rules! nodemut {
+    ($ll:expr,$idx:expr) => {
+	//  unsafe{$ll.nodes.get_unchecked_mut($idx)}
+		$ll.nodes.get_mut($idx)
     };
 }
 // Note: none of the following macros work for Left-Hand-Side of assignment.
@@ -111,8 +115,8 @@ impl LinkedLists {
             p.next_idx = node!(self, last).next_idx;
             p.prev_idx = last;
             let lastnextidx = node!(self, last).next_idx;
-            node!(self, lastnextidx).prev_idx = p.idx;
-            node!(self, last).next_idx = p.idx;
+            nodemut!(self, lastnextidx).prev_idx = p.idx;
+            nodemut!(self, last).next_idx = p.idx;
         }
         self.nodes.push(p.clone());
         return p.idx;
@@ -124,16 +128,16 @@ impl LinkedLists {
 
         let nx = node!(self, p).next_idx;
         let pr = node!(self, p).prev_idx;
-        node!(self, nx).prev_idx = pr;
-        node!(self, pr).next_idx = nx;
+        nodemut!(self, nx).prev_idx = pr;
+        nodemut!(self, pr).next_idx = nx;
 
         let prz = node!(self, p).prevz_idx;
         let nxz = node!(self, p).nextz_idx;
         if prz != NULL {
-            node!(self, prz).nextz_idx = nxz;
+            nodemut!(self, prz).nextz_idx = nxz;
         }
         if nxz != NULL {
-            node!(self, nxz).prevz_idx = prz;
+            nodemut!(self, nxz).prevz_idx = prz;
         }
         self.freelist.push(p);
     }
@@ -282,9 +286,15 @@ fn earcut_linked(
         }
         if test {
             // cut off the triangle
-            triangles.push(ll.nodes[prev].i / dim);
-            triangles.push(ll.nodes[ear].i / dim);
-            triangles.push(ll.nodes[next].i / dim);
+			if dim==2 { // tiny speed boost
+	            triangles.push(ll.nodes[prev].i / 2);
+	            triangles.push(ll.nodes[ear].i  / 2);
+	            triangles.push(ll.nodes[next].i / 2);
+			} else {
+	            triangles.push(ll.nodes[prev].i / dim);
+	            triangles.push(ll.nodes[ear].i  / dim);
+	            triangles.push(ll.nodes[next].i / dim);
+			}
 
             ll.remove_node(ear);
 
@@ -324,10 +334,10 @@ fn index_curve(ll: &mut LinkedLists, start: NodeIdx, minx: f64, miny: f64, invsi
     let mut p = start;
     loop {
         if node!(ll, p).z == NULL32 {
-            node!(ll, p).z = zorder(node!(ll, p).x, node!(ll, p).y, minx, miny, invsize);
+            nodemut!(ll, p).z = zorder(node!(ll, p).x, node!(ll, p).y, minx, miny, invsize);
         }
-        node!(ll, p).prevz_idx = node!(ll, p).prev_idx;
-        node!(ll, p).nextz_idx = node!(ll, p).next_idx;
+        nodemut!(ll, p).prevz_idx = node!(ll, p).prev_idx;
+        nodemut!(ll, p).nextz_idx = node!(ll, p).next_idx;
         p = node!(ll, p).next_idx;
         if p == start {
             break;
@@ -335,8 +345,8 @@ fn index_curve(ll: &mut LinkedLists, start: NodeIdx, minx: f64, miny: f64, invsi
     }
 
     let pzi = prevz!(ll, p).idx;
-    node!(ll, pzi).nextz_idx = NULL;
-    node!(ll, p).prevz_idx = NULL;
+    nodemut!(ll, pzi).nextz_idx = NULL;
+    nodemut!(ll, p).prevz_idx = NULL;
 
     sort_linked(ll, p);
 }
@@ -446,7 +456,7 @@ fn is_ear_hashed(ll: &mut LinkedLists, ear: usize, minx: f64, miny: f64, invsize
     }
 
 
-/*    while (p != NULL) && (node!(ll, p).z >= min_z) && (n != NULL) && (node!(ll, n).z <= max_z) {
+    while (p != NULL) && (node!(ll, p).z >= min_z) && (n != NULL) && (node!(ll, n).z <= max_z) {
         dlog!(18, "look for points inside the triangle in both directions");
         if earcheck(ll, &a, &b, &c, p) {
             return false;
@@ -458,7 +468,7 @@ fn is_ear_hashed(ll: &mut LinkedLists, ear: usize, minx: f64, miny: f64, invsize
         }
         n = node!(ll, n).nextz_idx;
     }
-*/
+
     while (p != NULL) && (node!(ll, p).z >= min_z) {
         dlog!(18, "look for remaining points in decreasing z-order");
         if earcheck(ll, &a, &b, &c, p) {
@@ -701,9 +711,15 @@ fn cure_local_intersections(
             && locally_inside(ll, &node!(ll, a), &node!(ll, b))
             && locally_inside(ll, &node!(ll, b), &node!(ll, a))
         {
-            triangles.push(node!(ll, a).i / dim);
-            triangles.push(node!(ll, p).i / dim);
-            triangles.push(node!(ll, b).i / dim);
+			if dim==2 { // a few percent speed boost
+	            triangles.push(&node!(ll, a).i / 2);
+	            triangles.push(&node!(ll, p).i / 2);
+	            triangles.push(&node!(ll, b).i / 2);
+			} else {
+	            triangles.push(&node!(ll, a).i / dim);
+	            triangles.push(&node!(ll, p).i / dim);
+	            triangles.push(&node!(ll, b).i / dim);
+			}
 
             // remove two nodes involved
             ll.remove_node(p);
@@ -872,7 +888,8 @@ fn find_hole_bridge(ll: &LinkedLists, hole: &Node, outer_node: NodeIdx) -> NodeI
         let mp = Node::new(0, mx, my, 0);
         let n2 = Node::new(0, x2, hy, 0);
 
-        if (hx >= px) && (px >= mx) && (hx != px) && point_in_triangle(&n1, &mp, &n2, &node!(ll, p))
+        if (hx >= px) && (px >= mx) && (hx != px) && 
+			point_in_triangle(&n1, &mp, &n2, &node!(ll, p))
         {
             tan = (hy - py).abs() / (hx - px); // tangential
 
@@ -1056,16 +1073,16 @@ fn split_bridge_polygon(ll: &mut LinkedLists, a: NodeIdx, b: NodeIdx) -> NodeIdx
     let an = node!(ll, a).next_idx;
     let bp = node!(ll, b).prev_idx;
 
-    node!(ll, a).next_idx = b;
-    node!(ll, b).prev_idx = a;
+    nodemut!(ll, a).next_idx = b;
+    nodemut!(ll, b).prev_idx = a;
 
     c.next_idx = an;
-    node!(ll, an).prev_idx = cidx;
+    nodemut!(ll, an).prev_idx = cidx;
 
     d.next_idx = cidx;
     c.prev_idx = didx;
 
-    node!(ll, bp).next_idx = didx;
+    nodemut!(ll, bp).next_idx = didx;
     d.prev_idx = bp;
 
     ll.nodes.push(c);
@@ -1334,7 +1351,7 @@ mod tests {
         ll.remove_node(2);
     }
 
-    #[test]
+/*    #[test]
     fn test_point_in_triangle() {
         let dims = 2;
         let data = vec![0.0, 0.0, 2.0, 0.0, 2.0, 2.0, 1.0, 0.1];
@@ -1346,7 +1363,7 @@ mod tests {
             &ll.nodes[3]
         ));
     }
-
+*/
     #[test]
     fn test_signed_area() {
         let data1 = vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.0];

@@ -167,8 +167,8 @@ This triangulator is built primarily as an exercise in porting
 javascript to Rust. It is supposed to produce exacly the same output as 
 the javascript version, thanks to the test data supplied with the 
 original javascript code.. It is relatively simple. If the benchmarks 
-below are correct, the optimized Rust speed is comparable to the 
-optimized C++ version of earcut.
+below are correct, the optimized Rust speed is a wee bit slower
+than the optimized C++ version of earcut, but usually in the same ballpark.
 
 If you want to get correct triangulation even on very bad data with lots 
 of self-intersections and earcutr is not precise enough, take a look at 
@@ -206,13 +206,13 @@ To run benchmarks:
 ```bash
 $ cargo bench
 ...
-test bench_water                ... bench:   2,168,282 ns/iter (+/- 34,776)
-test bench_water2               ... bench:   1,920,641 ns/iter (+/- 26,109)
-test bench_water3               ... bench:      85,089 ns/iter (+/- 551)
-test bench_water3b              ... bench:       8,440 ns/iter (+/- 21)
-test bench_water4               ... bench:     561,218 ns/iter (+/- 22,723)
-test bench_water_huge           ... bench:  30,987,850 ns/iter (+/- 463,670)
-test bench_water_huge2          ... bench:  63,462,059 ns/iter (+/- 1,707,658)
+test bench_water                ... bench:   2,059,430 ns/iter (+/- 47,671)
+test bench_water2               ... bench:   1,865,171 ns/iter (+/- 238,113)
+test bench_water3               ... bench:      79,463 ns/iter (+/- 703)
+test bench_water3b              ... bench:       7,459 ns/iter (+/- 157)
+test bench_water4               ... bench:     528,206 ns/iter (+/- 7,766)
+test bench_water_huge           ... bench:  30,773,288 ns/iter (+/- 503,200)
+test bench_water_huge2          ... bench:  62,758,212 ns/iter (+/- 2,086,865)
 ```
 
 Bench note: As of this writing, benchmarking is not in Stable Rust, so 
@@ -221,8 +221,8 @@ this project uses an alternative, https://docs.rs/bencher/0.1.5/bencher/
 ### Speed of this Rust code vs earcut.hpp C++ code
 
 Mapbox has a C++ port of earcut.hpp, with a built in benchmarker, measured
-in 'ops per second'. For water tests, it reports like so on an old HP Laptop
-without optimizations turned on.
+in 'ops per second'. For water tests, it reports like so on an old HP Laptop,
+without any C++ optimizations ( -O0 ).
 
 ```bash
 ____polygon_________________earcut.hpp_________libtessc++___
@@ -236,7 +236,8 @@ ____polygon_________________earcut.hpp_________libtessc++___
 ------------------------------------------------------------
 
 Now... you can hack around in the earcut.hpp CMakeLists.txt cmakefile, 
-and Turn On Optimization (gcc -O2). It becomes at least a 2x speedup:
+and Turn On Optimization (gcc/clang -O2). It becomes at least a 2x speedup,
+sometimes much higher.
 
 ____polygon_________________earcut.hpp_________libtessc++___
 | water          |          546 ops/s |          104 ops/s |
@@ -248,7 +249,7 @@ ____polygon_________________earcut.hpp_________libtessc++___
 | water_huge2    |           18 ops/s |           50 ops/s |
 ------------------------------------------------------------
 
-Rust bench measures in nanoseconds per iteration.
+Now, Rust bench measures in nanoseconds per iteration.
 C++ Earcut measures in iterations per second. To convert:
 18 ops in 1 second, is 
 18 iterations in 1,000,000,000 nanoseconds. 
@@ -256,24 +257,21 @@ C++ Earcut measures in iterations per second. To convert:
 So, converting the above:
 
 ____polygon______earcut.hpp_-O2__libtessc++_-O2___Rust_earcutr_release
-| water      |  1,831,501 ns/i  |  9,615,384 ns/i |   2,168,282 ns/i |
-| water2     |  1,626,016 ns/i  |  1,694,915 ns/i |   1,920,641 ns/i |
-| water3     |     53,140 ns/i  |    153,869 ns/i |      85,089 ns/i |
-| water3b    |      4,183 ns/i  |     20,143 ns/i |       8,440 ns/i |
-| water4     |    475,511 ns/i  |    871,839 ns/i |     561,218 ns/i |
-| water_huge | 26,315,789 ns/i  | 26,315,789 ns/i |  30,987,850 ns/i |
-| water_huge2| 55,555,555 ns/i  | 20,000,000 ns/i |  63,462,059 ns/i |
+| water      |  1,831,501 ns/i  |  9,615,384 ns/i |   2,059,430 ns/i |
+| water2     |  1,626,016 ns/i  |  1,694,915 ns/i |   1,865,171 ns/i |
+| water3     |     53,140 ns/i  |    153,869 ns/i |      79,463 ns/i |
+| water3b    |      4,183 ns/i  |     20,143 ns/i |       7,459 ns/i |
+| water4     |    475,511 ns/i  |    871,839 ns/i |     528,206 ns/i |
+| water_huge | 26,315,789 ns/i  | 26,315,789 ns/i |  30,773,288 ns/i |
+| water_huge2| 55,555,555 ns/i  | 20,000,000 ns/i |  62,758,212 ns/i |
 ----------------------------------------------------------------------
-nsi = nanoseconds per iteration
+ns/i = nanoseconds per iteration
 
 ```
 
 If the calculations are correct in the Rust benchmark, and the 
 conversion is correct, then the Rust code is 10 to 20% slower than the 
-C++ port of earcut.hpp.
-
-But what about gcc's infamous -mnative? On this old machine, it was 
-basically within margin of error, not worth typing the data out.
+C++ port of earcut.hpp on most shapes. 
 
 #### Profiling
 
@@ -305,9 +303,9 @@ sudo perf report
 
 Profiling results:
 
-Profilers reveal the vast majority of time is spent inside is_earcut_hashed(),
-which is determining whether an ear is "really an ear" so that it may be
-cut without damaging the polygon.
+Profilers reveal on bigger shapes the vast majority of time is spent 
+inside is_earcut_hashed(), which is determining whether an ear is 
+"really an ear" so that it may be cut without damaging the polygon.
 
 In particular the point_in_triangle and area function take up a lot of time.
 Since this port has them inside a single 'earchecker' function, that function
@@ -330,6 +328,25 @@ Into
     let mut y: i32 = ( 32767.0 *   ((yf - miny) * invsize)) as i32;
 
 A 13x speedup was achieved for the 'water' benchmark.
+
+For smaller shapes, the reasons would need more investigation:
+
+- c++ earcut assumes 2 dimensions, which can save a few percent
+
+- c++ earcut uses 'real linked lists' instead of this code, which
+fakes a linked list using bounds-checked index into a vector of nodes.
+some of this can be replaced with get_unchecked but experiments
+only showed a tiny 500 ns speed boost, not worth an unsafe{} block.
+
+-this version of rust code uses an iterator to cycle through the nodes, 
+which is slightly slower than a real linked list since the custom 
+iterator is checking 4 conditions instead of 1 (is null)
+
+-for water3b in particular, the rust code is spending more time in 
+earcut_linked than in is_ear, which is opposite from c++
+
+-there is a small possibility that c++ earcut appears to be optimizing 
+the point_in_triangle math differently than Rust,
 
 ## In other languages
 
