@@ -52,7 +52,7 @@ macro_rules! node {
 macro_rules! nodemut {
     ($ll:expr,$idx:expr) => {
 	//  unsafe{$ll.nodes.get_unchecked_mut($idx)}
-		$ll.nodes.get_mut($idx)
+		$ll.nodes.get_mut($idx).unwrap()
     };
 }
 // Note: none of the following macros work for Left-Hand-Side of assignment.
@@ -1351,7 +1351,7 @@ mod tests {
         ll.remove_node(2);
     }
 
-/*    #[test]
+    #[test]
     fn test_point_in_triangle() {
         let dims = 2;
         let data = vec![0.0, 0.0, 2.0, 0.0, 2.0, 2.0, 1.0, 0.1];
@@ -1363,7 +1363,7 @@ mod tests {
             &ll.nodes[3]
         ));
     }
-*/
+
     #[test]
     fn test_signed_area() {
         let data1 = vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.0];

@@ -3,8 +3,8 @@ name = "earcutr"
 version = "0.1.0"
 authors = ["don bright <hmbright@fastmail.com>"]
 
-[dependencies]
-rayon = "1.0"
+#[dependencies]
+#rayon = "1.0"
 
 [dev-dependencies]
 serde = "1.0.80"
@@ -18,8 +18,8 @@ harness = false
 
 # for profiling with standard tools, like
 # Valgrind's Callgrind or Perf
-[profile.release] 
-debug = true
+#[profile.release] 
+#debug = true
 
 # for profiling with CpuProfiler
 #[dependencies]
