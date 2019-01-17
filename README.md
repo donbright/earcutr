@@ -301,52 +301,85 @@ sudo perf record  target/release/deps/speedtest-bc0e4fb32ac081fc  dude
 sudo perf report
 ```
 
-Profiling results:
+#### Profiling results
 
-Profilers reveal on bigger shapes the vast majority of time is spent 
+Here are a few other highlights from testing:
+
+*is_earcut_hashed() is hot: Profilers reveal that on bigger shapes the vast majority of time is spent 
 inside is_earcut_hashed(), which is determining whether an ear is 
 "really an ear" so that it may be cut without damaging the polygon.
 
-In particular the point_in_triangle and area function take up a lot of time.
-Since this port has them inside a single 'earchecker' function, that function
-was marked 'inline' resulting in a good speed boost. 
+*inline is important: Most of the time in C++ you can assume the 
+compiler figures out inlining. Here, however, the point_in_triangle and 
+area function take up a lot of time. Since this port has them inside a 
+single 'earchecker' function, that function was marked 'inline' 
+resulting in a good speed boost.
 
-The second major speed boost comes from Callgrind/kcachegrind in 
-particular revealed that the zorder() function was a source of some 
-consternation. In particular the conversion from floating point 64 bit 
-numbers in the input arguments, to the 32 bit integer, can be tricky 
-since Rust does not optimize that conversion like Clang or GCC would do.
+*Zorder is also hot: The second major speed boost comes from 
+Callgrind/kcachegrind in particular revealed that the zorder() function 
+was a source of some consternation. In particular the conversion from 
+floating point 64 bit numbers in the input arguments, to the 32 bit 
+integer, can be tricky since the conversion can be optimized in various 
+unusual ways
+
+*Floating point to integer is hot:
 
 By transforming 
 
-    let mut x: i32 = 32767 * ((xf- minx) * invsize) as i32;
-    let mut y: i32 = 32767 * ((yf- miny) * invsize) as i32;
+    let mut x: i32 = 32767 * ((xf- minx) * invsize).round() as i32;
+    let mut y: i32 = 32767 * ((yf- miny) * invsize).round() as i32;
 
-Into
+Into this:
 
     let mut x: i32 = ( 32767.0 *   ((xf - minx) * invsize)) as i32;
     let mut y: i32 = ( 32767.0 *   ((yf - miny) * invsize)) as i32;
 
 A 13x speedup was achieved for the 'water' benchmark.
 
-For smaller shapes, the reasons would need more investigation:
+* dimensions: c++ earcut assumes 2 dimensions, which can save a few percent. for example
+the main earcut loop, which is called for every single ear, has three 'div'
+inside of it if you have generic dimensions. by optimizing for the case
+of 2 dimensions by saying point.i/2, the compiler can change that into
+a >> 2
 
-- c++ earcut assumes 2 dimensions, which can save a few percent
-
-- c++ earcut uses 'real linked lists' instead of this code, which
+* linked list vs nodes in a vector:  c++ earcut uses 'real linked lists' instead of this code, which
 fakes a linked list using bounds-checked index into a vector of nodes.
 some of this can be replaced with get_unchecked but experiments
 only showed a tiny 500 ns speed boost, not worth an unsafe{} block.
 
--this version of rust code uses an iterator to cycle through the nodes, 
-which is slightly slower than a real linked list since the custom 
-iterator is checking 4 conditions instead of 1 (is null)
+* NULL index vs Option(Index). Since we use a vector of nodes instead
+of a linked list, there needs to be a translation of the NULL concept
+like in the javascript code for the linked list node pointers. We could
+use 'Option' but what ends up happening is that you have to unwrap
+your option every single time. And what risk is it stopping? A bad index
+into a vector - which will get caught by the bounds checker if its too
+low or high, or worst case produce garbled output by going to invalid
+nodes. I tried to convert NULL to Option None, everything was about
+twice as slow in benchmarks.
 
--for water3b in particular, the rust code is spending more time in 
-earcut_linked than in is_ear, which is opposite from c++
+* linked list 'next' vs iterator: this version of rust code uses an 
+iterator to cycle through the nodes, which is slightly slower than a 
+real linked list since the custom iterator is checking 4 conditions 
+instead of 1 (is null)
 
--there is a small possibility that c++ earcut appears to be optimizing 
-the point_in_triangle math differently than Rust,
+* small shapes: for water3b in particular, the rust code is spending 
+more time in earcut_linked than in is_ear, which is opposite from c++
+
+* maths: there is a small possibility that c++ earcut appears to be 
+optimizing the point_in_tria
+ngle math differently than Rust,
+
+* Subtraction that is unnoticeable: what about eliminating the 
+'subtraction' in point_in_triangle by translating the entire polygon so 
+minx and miny are 0? Tried it, the difference is within margin of 
+measurement error. In other words, even though its removing millions of 
+instructions from the code line, the way things fit through the CPU 
+floating point cache it didnt matter. Amazing.
+
+* Vector Indexing and bounds checking in Rust: You can test this by 
+replacing [] inside of the node! next! and prev! macros with 
+.get_unchecked() and/or .get_unchecked_mut(), the answer is a tiny 
+speedup, almost too small to measure.
 
 ## In other languages
 
