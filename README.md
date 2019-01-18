@@ -305,24 +305,24 @@ sudo perf report
 
 Here are a few other highlights from testing:
 
-*is_earcut_hashed() is hot: Profilers reveal that on bigger shapes the vast majority of time is spent 
+* is_earcut_hashed() is hot: Profilers reveal that on bigger shapes the vast majority of time is spent 
 inside is_earcut_hashed(), which is determining whether an ear is 
 "really an ear" so that it may be cut without damaging the polygon.
 
-*inline is important: Most of the time in C++ you can assume the 
+* inline is important: Most of the time in C++ you can assume the 
 compiler figures out inlining. Here, however, the point_in_triangle and 
 area function take up a lot of time. Since this port has them inside a 
 single 'earchecker' function, that function was marked 'inline' 
 resulting in a good speed boost.
 
-*Zorder is also hot: The second major speed boost comes from 
+* Zorder is also hot: The second major speed boost comes from 
 Callgrind/kcachegrind in particular revealed that the zorder() function 
 was a source of some consternation. In particular the conversion from 
 floating point 64 bit numbers in the input arguments, to the 32 bit 
 integer, can be tricky since the conversion can be optimized in various 
 unusual ways
 
-*Floating point to integer is hot:
+* Floating point to integer is hot:
 
 By transforming 
 
@@ -414,7 +414,7 @@ and elegance. Let's compare is_ear() which is used heavily by small
 shapes (since larger shapes only use is_ear_hashed()). Compare the loop{}
 version with the iteration version:
 
-```` 
+```rust
 
 Loop: 10 lines of code. Normal C style maintainability, and bug 
 issues (off by one in the loop? breaking too soon or too late? not 
@@ -441,6 +441,7 @@ and we don't have to manually break or return at all.
             point_in_triangle(&a, &b, &c, &p)
                 && (area(&prev!(ll, p.idx), &p, &next!(ll, p.idx)) >= 0.0)
 		  }),
+
 ```
 
 Taking into consideration the balance and tradeoff between speed and 
