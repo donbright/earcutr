@@ -34,7 +34,8 @@ fn mkoutput(filename_w_dashes: &str, triangles: Vec<usize>) {
             0,
             triangles.len(),
             triangles
-        ).unwrap(),
+        )
+        .unwrap(),
     };
 }
 
@@ -228,13 +229,13 @@ fn bench_water_huge(bench: &mut Bencher) {
 
     let (data, holeidxs, dimensions) = load_json(nm);
     let mut triangles = Vec::new();
-//PROFILER.lock().unwrap().start("./earcutr.profile").unwrap();
-	bench.iter(|| {
-//	for i in 0..99 {
+    //PROFILER.lock().unwrap().start("./earcutr.profile").unwrap();
+    bench.iter(|| {
+        //	for i in 0..99 {
         triangles = earcutr::earcut(&data, &holeidxs, dimensions);
-//	}
-	   });
-//PROFILER.lock().unwrap().stop().unwrap();
+        //	}
+    });
+    //PROFILER.lock().unwrap().stop().unwrap();
 
     mkoutput(nm, triangles);
 }
