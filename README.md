@@ -342,10 +342,15 @@ inside of it if you have generic dimensions. by optimizing for the case
 of 2 dimensions by saying point.i/2, the compiler can change that into
 a >> 2
 
-* linked list vs nodes in a vector:  c++ earcut uses 'real linked lists' instead of this code, which
-fakes a linked list using bounds-checked index into a vector of nodes.
-some of this can be replaced with get_unchecked but experiments
-only showed a tiny 500 ns speed boost, not worth an unsafe{} block.
+* linked list vs nodes in a vector: c++ earcut uses 'real linked lists' 
+instead of this code, which fakes a linked list using bounds-checked 
+index into a vector of nodes. some of this can be replaced with 
+get_unchecked but experiments only showed a tiny speed boost within the 
+margin of error, except for small shapes like water3b which was about 
+500 ns, but not worth an unsafe{} block. during development the program
+has crashed many times due to out of bounds checking, and thanks to that
+checking it was extremely easy to diagnose and fix the problems. unsafe
+would remove that ability.
 
 * NULL index vs Option(Index). Since we use a vector of nodes instead
 of a linked list, there needs to be a translation of the NULL concept
@@ -380,6 +385,71 @@ floating point cache it didnt matter. Amazing.
 replacing [] inside of the node! next! and prev! macros with 
 .get_unchecked() and/or .get_unchecked_mut(), the answer is a tiny 
 speedup, almost too small to measure.
+
+* Iteration vs loops. This code has converted several javascript for 
+loops into Rust iteration. For example the entire leftmost() function 
+was replaced by a single line of iterator adaptor code. However. Each 
+iteration involves calling Some() and checking against None which may be 
+slower than doing a straight and ordinary loop. How much slower?
+
+```
+a few iter_range() replaced with loop{}: 
+test bench_water                ... bench:   2,044,420 ns/iter (+/- 23,388)
+test bench_water2               ... bench:   1,865,605 ns/iter (+/- 13,123)
+test bench_water3               ... bench:      77,158 ns/iter (+/- 483)
+test bench_water3b              ... bench:       6,845 ns/iter (+/- 35)
+test bench_water4               ... bench:     530,067 ns/iter (+/- 14,930)
+test bench_water_huge           ... bench:  30,693,084 ns/iter (+/- 578,848)
+test bench_water_huge2          ... bench:  62,481,656 ns/iter (+/- 1,934,261)
+
+```
+
+Ahh. Well. For testing, a few iterations were replaced with loop{}. the 
+small shape water3b it is several hundred nanoseconds faster per 
+iteration using loop{}. However for larger shapes the speed is within 
+error of measurement. 
+
+Furthermore, consider maintainability, legibility, likelihood of bugs, 
+and elegance. Let's compare is_ear() which is used heavily by small 
+shapes (since larger shapes only use is_ear_hashed()). Compare the loop{}
+version with the iteration version:
+
+```` 
+
+Loop: 10 lines of code. Normal C style maintainability, and bug 
+issues (off by one in the loop? breaking too soon or too late? not 
+cleaning up properly before return? not a big deal, but can we do 
+better?)
+
+            let mut p = c.next_idx;
+            loop {
+                if point_in_triangle(&a,&b,&c,&node!(ll,p)) &&
+                area(&prev!(ll, p), &node!(ll,p), &next!(ll, p)) >= 0.0 {
+                    return false;
+                }
+                p = node!(ll,p).next_idx;
+                if p==a.idx { break; };
+            };
+            return true;
+
+Iteration: 4 lines. Easier to read (once you learn the basics of 
+functional languages), easier to maintain, easier to debug, easier to 
+write, "off by one" only applies to my iteration inputs c.next and a, 
+and we don't have to manually break or return at all.
+
+          !ll.iter_range(c.next_idx..a.idx).any(|p| {
+            point_in_triangle(&a, &b, &c, &p)
+                && (area(&prev!(ll, p.idx), &p, &next!(ll, p.idx)) >= 0.0)
+		  }),
+```
+
+Taking into consideration the balance and tradeoff between speed and 
+maintainability, legibility, and elegance, iterators have been left in. 
+The speed is unnoticeable on the vast majority of benchmarks and it's 
+only a tiny percentage on others.
+
+Note that part of this is because there is no place for iterator to be 
+used in the 'hot code', where most time is spent - is_ear_hashed(). 
 
 ## In other languages
 

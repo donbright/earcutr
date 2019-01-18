@@ -1,5 +1,8 @@
 #![allow(dead_code)]
 
+extern crate rayon;
+use rayon::prelude::*;
+
 static NULL: usize = 0x777A91CC;
 static NULL32: i32 = std::i32::MAX;
 //static DEBUG: usize = 4;
@@ -45,13 +48,11 @@ macro_rules! dlog {
 }
 macro_rules! node {
     ($ll:expr,$idx:expr) => {
-	// unsafe{$ll.nodes.get_unchecked($idx)}
 		 $ll.nodes[$idx]
     };
 }
 macro_rules! nodemut {
     ($ll:expr,$idx:expr) => {
-	//  unsafe{$ll.nodes.get_unchecked_mut($idx)}
 		$ll.nodes.get_mut($idx).unwrap()
     };
 }
@@ -153,13 +154,15 @@ struct NodeIterator<'a> {
     start: NodeIdx,
     cur: NodeIdx,
     end: NodeIdx,
-    count: usize,
+    count: i64,
     ll: &'a LinkedLists,
+	nextresult: Option<&'a Node>,
 }
 
 impl<'a> NodeIterator<'a> {
     fn new(ll: &LinkedLists, start: usize, end: usize) -> NodeIterator {
         NodeIterator {
+			nextresult: Some(&ll.nodes[start]),
             start: start,
             cur: start,
             end: end,
@@ -172,18 +175,15 @@ impl<'a> NodeIterator<'a> {
 impl<'a> Iterator for NodeIterator<'a> {
     type Item = &'a Node;
     fn next(&mut self) -> Option<Self::Item> {
-        let result = if self.count == 0 {
-            Some(&node!(self.ll, self.cur)) // single-node iterator
-        } else if self.cur == std::usize::MAX {
-            None // NULL node
-        } else if self.cur == self.end {
-            None // end of iteration
-        } else {
-            Some(&node!(self.ll, self.cur)) // normal iteration
-        };
-        self.count += 1;
-        self.cur = node!(self.ll, self.cur).next_idx;
-        result
+        let next = node!(self.ll, self.cur).next_idx;
+		let result = self.nextresult;
+		self.nextresult = Some(&node!(self.ll,next));
+		// only one branch, saves about 5% time on polygons with few points
+		if next == self.end {
+			self.nextresult = None;
+		}
+		self.cur = next;
+		result
     }
 }
 
@@ -420,7 +420,8 @@ fn is_ear(ll: &LinkedLists, ear: usize) -> bool {
     let (a, b, c) = (&prev!(ll, ear), &node!(ll, ear), &next!(ll, ear));
 	match area(a, b, c) >= 0.0 {
         true => false, // reflex, cant be ear
-        false => !ll.iter_range(c.next_idx..a.idx).any(|p| {
+        false => {
+			!ll.iter_range(c.next_idx..a.idx).any(|p| {
             point_in_triangle(&a, &b, &c, &p)
                 && (area(&prev!(ll, p.idx), &p, &next!(ll, p.idx)) >= 0.0)
         }),
@@ -778,7 +779,7 @@ fn split_earcut(
 
                 // run earcut on each half
                 earcut_linked(ll, a, triangles, dim, minx, miny, invsize, 0, testhash);
-                earcut_linked(ll, c, triangles, dim, minx, miny, invsize, 0, testhash);
+                earcut_linked(ll, c, triangles, dim, minx, miny, invsize, 0, testhash );
                 return;
             }
             b = node!(ll, b).next_idx;
@@ -957,13 +958,27 @@ fn pseudo_intersects(p1: &Node, q1: &Node, p2: &Node, q2: &Node) -> bool {
 
 // check if a polygon diagonal intersects any polygon segments
 fn intersects_polygon(ll: &LinkedLists, a: &Node, b: &Node) -> bool {
-    ll.iter_range(a.idx..a.idx).any(|p| {
+	let mut p = a.idx;
+	loop {
+		if     node!(ll,p).i != a.i
+            && next!(ll,p).i != a.i
+            && node!(ll,p).i != b.i
+            && next!(ll,p).i != b.i
+            && pseudo_intersects(&node!(ll,p), &next!(ll, p), a, b) {
+			return true;
+		}
+		p = next!(ll,p).idx;
+		if p==a.idx { break; };
+	}
+	return false;
+/*    ll.iter_range(a.idx..a.idx).any(|p| {
         p.i != a.i
             && next!(ll, p.idx).i != a.i
             && p.i != b.i
             && next!(ll, p.idx).i != b.i
             && pseudo_intersects(&p, &next!(ll, p.idx), a, b)
-    })
+    })*/
+
 }
 
 // check if a polygon diagonal is locally inside the polygon
@@ -1161,14 +1176,14 @@ fn pb(a: bool) -> String {
 }
 fn dump(ll: &LinkedLists) -> String {
     let mut s = format!("LL, #nodes: {}", ll.nodes.len());
-    s.push_str(&format!(" #used: {}\n", ll.nodes.len() - ll.freelist.len()));
+    s.push_str(&format!(" #used: {}\n", ll.nodes.len() as i64 - ll.freelist.len() as i64));
     s.push_str(&format!(
-        " {:>3} {:>3} {:>4} {:>4} {:>8.3} {:>8.3} {:>4} {:>4} {:>2} {:>2} {:>2}\n",
-        "vi", "i", "p", "n", "x", "y", "pz", "nz", "st", "fr", "cyl"
+        " {:>3} {:>3} {:>4} {:>4} {:>8.3} {:>8.3} {:>4} {:>4} {:>2} {:>2} {:>2} {:>4}\n",
+        "vi", "i", "p", "n", "x", "y", "pz", "nz", "st", "fr", "cyl", "z"
     ));
     for n in ll.nodes.iter() {
         s.push_str(&format!(
-                " {:>3} {:>3} {:>4} {:>4} {:>8.3} {:>8.3} {:>4} {:>4} {:>2} {:>2} {:>2}\n",
+                " {:>3} {:>3} {:>4} {:>4} {:>8.3} {:>8.3} {:>4} {:>4} {:>2} {:>2} {:>2} {:>4}\n",
                 n.idx,
                 n.i,
                 pn(n.prev_idx),
@@ -1179,11 +1194,34 @@ fn dump(ll: &LinkedLists) -> String {
                 pn(n.nextz_idx),
                 pb(n.steiner),
                 pb(ll.freelist.contains(&n.idx)),
-                0//,ll.iter_range(n.idx..n.idx).count(),
+                0,//,ll.iter_range(n.idx..n.idx).count(),
+				n.z,
             ));
     }
     return s;
 }
+
+    fn cycle_dump(ll: &LinkedLists, p: NodeIdx) -> String {
+        let mut s = format!("cycle from {}, ", p);
+        s.push_str(&format!(" len {}, idxs:", 0 ));//cycle_len(&ll, p)));
+        let mut i = p;
+        let end = i;
+		let mut count = 0;
+        loop {
+			count += 1;
+            s.push_str(&format!("{} ", node!(ll, i).idx));
+            s.push_str(&format!("(i:{}), ", node!(ll, i).i));
+            i = node!(ll, i).next_idx;
+            if i == end {
+                break s;
+            }
+			if count>ll.nodes.len() { 
+				s.push_str(&format!(" infinite loop"));
+				break s;
+			}
+        }
+    }
+
 
 #[cfg(test)]
 mod tests {
@@ -1216,20 +1254,6 @@ mod tests {
             } // if markvi == 0
         } //for markv
         format!("cycles report:\n{:?}", markv)
-    }
-
-    fn cycle_dump(ll: &LinkedLists, p: NodeIdx) -> String {
-        let mut s = format!("cycle from {}, ", p);
-        s.push_str(&format!(" len {}, idxs:", cycle_len(&ll, p)));
-        let mut i = p;
-        let end = i;
-        loop {
-            s.push_str(&format!("{} ", node!(ll, i).idx));
-            i = node!(ll, i).next_idx;
-            if i == end {
-                break s;
-            }
-        }
     }
 
     fn dump_cycle(ll: &LinkedLists, start: usize) -> String {
@@ -1843,6 +1867,8 @@ mod tests {
             invsize,
             true,
         );
+		println!("{}",dump(&ll));
+		println!("tris: {:?}",triangles);
         assert!(triangles.len() == 6);
         assert!(ll.nodes.len() == 6);
         assert!(ll.freelist.len() == 2);
