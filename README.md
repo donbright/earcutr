@@ -206,13 +206,13 @@ To run benchmarks:
 ```bash
 $ cargo bench
 ...
-test bench_water                ... bench:   2,059,430 ns/iter (+/- 47,671)
-test bench_water2               ... bench:   1,865,171 ns/iter (+/- 238,113)
-test bench_water3               ... bench:      79,463 ns/iter (+/- 703)
-test bench_water3b              ... bench:       7,459 ns/iter (+/- 157)
-test bench_water4               ... bench:     528,206 ns/iter (+/- 7,766)
-test bench_water_huge           ... bench:  30,773,288 ns/iter (+/- 503,200)
-test bench_water_huge2          ... bench:  62,758,212 ns/iter (+/- 2,086,865)
+test bench_water                ... bench:   1,996,418 ns/iter (+/- 55,718)
+test bench_water2               ... bench:   1,594,661 ns/iter (+/- 12,079)
+test bench_water3               ... bench:      72,284 ns/iter (+/- 537)
+test bench_water3b              ... bench:       8,218 ns/iter (+/- 40)
+test bench_water4               ... bench:     508,055 ns/iter (+/- 3,053)
+test bench_water_huge           ... bench:  30,273,199 ns/iter (+/- 629,866)
+test bench_water_huge2          ... bench:  61,670,582 ns/iter (+/- 1,541,937)
 ```
 
 Bench note: As of this writing, benchmarking is not in Stable Rust, so 
@@ -257,13 +257,13 @@ C++ Earcut measures in iterations per second. To convert:
 So, converting the above:
 
 ____polygon______earcut.hpp_-O2__libtessc++_-O2___Rust_earcutr_release
-| water      |  1,831,501 ns/i  |  9,615,384 ns/i |   2,059,430 ns/i |
-| water2     |  1,626,016 ns/i  |  1,694,915 ns/i |   1,865,171 ns/i |
-| water3     |     53,140 ns/i  |    153,869 ns/i |      79,463 ns/i |
-| water3b    |      4,183 ns/i  |     20,143 ns/i |       7,459 ns/i |
-| water4     |    475,511 ns/i  |    871,839 ns/i |     528,206 ns/i |
-| water_huge | 26,315,789 ns/i  | 26,315,789 ns/i |  30,773,288 ns/i |
-| water_huge2| 55,555,555 ns/i  | 20,000,000 ns/i |  62,758,212 ns/i |
+| water      |  1,831,501 ns/i  |  9,615,384 ns/i |   1,996,418 ns/i |
+| water2     |  1,626,016 ns/i  |  1,694,915 ns/i |   1,594,661 ns/i |
+| water3     |     53,140 ns/i  |    153,869 ns/i |      88,000 ns/i |
+| water3b    |      4,183 ns/i  |     20,143 ns/i |       8,218 ns/i |
+| water4     |    475,511 ns/i  |    871,839 ns/i |     508,055 ns/i |
+| water_huge | 26,315,789 ns/i  | 26,315,789 ns/i |  30,273,199 ns/i |
+| water_huge2| 55,555,555 ns/i  | 20,000,000 ns/i |  61,670,582 ns/i |
 ----------------------------------------------------------------------
 ns/i = nanoseconds per iteration
 
@@ -301,7 +301,7 @@ sudo perf record  target/release/deps/speedtest-bc0e4fb32ac081fc  dude
 sudo perf report
 ```
 
-#### Profiling results
+#### Profiling results 1/2 - Rust specific
 
 Here are a few other highlights from testing:
 
@@ -452,10 +452,324 @@ only a tiny percentage on others.
 Note that part of this is because there is no place for iterator to be 
 used in the 'hot code', where most time is spent - is_ear_hashed(). 
 
-## In other languages
+#### Profiling results 2/2 - special sauce
 
-- [mapbox/earcut](https://github.com/mapbox/earcut) the Original javascript
-- [mapbox/earcut.hpp](https://github.com/mapbox/earcut.hpp) C++11
+Profiling above showed the zorder() function is hot. Can we cool it
+down a bit?
+
+It begins like this:
+
+```rust
+fn zorder(xf: f64, yf: f64, minx: f64, miny: f64, invsize: f64) -> i32 {
+    // coords are transformed into non-negative 15-bit integer range
+    let mut x: i32 = (32767.0 * ((xf - minx) * invsize)) as i32;
+    let mut y: i32 = (32767.0 * ((yf - miny) * invsize)) as i32;
+```
+
+Now, I find its easier to read the assembly by actually using 'stat'
+than making rust dump assembly, so trying this:
+
+```bash
+
+make sure Cargo.toml has
+
+[profile.release] 
+debug = true
+
+then
+
+don@serebryanya:~/src/earcutr$ cargo bench water2
+   Compiling earcutr v0.1.0 (/home/don/src/earcutr)                             
+    Finished release [optimized + debuginfo] target(s) in 9.11s                 
+     Running target/release/deps/earcutr-7c59a70327baf37c
+     Running target/release/deps/speedtest-c6de42429f2eb5ef
+don@serebryanya:~/src/earcutr$ sudo perf stat target/release/deps/speedtest-c6de42429f2eb5ef water2
+don@serebryanya:~/src/earcutr$ sudo perf record target/release/deps/speedtest-c6de42429f2eb5ef water2
+don@serebryanya:~/src/earcutr$ sudo perf report
+
+hit 'h' to learn about keyboard commands
+drill down into is_earcut_hashed
+scroll to the top
+hit / for search, type 'invsize'
+
+       │     _ZN7earcutr13is_ear_hashed17haea87f38a9e0c9d3E():                 ▒
+  0.02 │       movsd  0x61056(%rip),%xmm8        # 82ea0 <ryu::d2s_full_table::▒
+       │     _ZN7earcutr6zorder17hab1d711e708e67cdE():                         ▒
+       │         let mut x: i32 = (32767.0 * ((xf - minx) * invsize)) as i32;  ▒
+       │       subsd  %xmm0,%xmm6                                              ▒
+       │       mulsd  %xmm2,%xmm6                                              ▒
+  0.69 │       mulsd  %xmm8,%xmm6                                              ▒
+  0.63 │       cvttsd2si %xmm6,%eax                                            ▒
+       │         let mut y: i32 = (32767.0 * ((yf - miny) * invsize)) as i32;  ▒
+  0.02 │       subsd  %xmm1,%xmm5                                              ▒
+  0.54 │       mulsd  %xmm2,%xmm5                                              ▒
+  0.31 │       mulsd  %xmm8,%xmm5                                              ▒
+  0.27 │       cvttsd2si %xmm5,%esi
+
+```
+
+What is this saying? Googleing subsd, mulsd, and cvttsd2si shows this:
+
+Basically it is subtracting one float from another, then multiplying 
+it, then multiplying it again. Then it's rounding to integer.
+
+But what is 32767.0 all about? invsize is multiplied by it... twice...
+couldn't we pre-computer invsize*32767.0 once instead of twice?
+
+Well maybe the optimizer has some reason. But ... what if we never
+had to multiply it at all? invsize is hardly ever used. In fact,
+pulling out trust nano 'ctrl-w' invsize, it reveals that invsize
+is never ever used except inside zorder, right here in the hot zone
+that im looking at!
+
+Now... where is invsize really set up? It's in calc_invsize(), note
+that i heavily modded that function while porting the javascript to try to
+understand what was going on better.
+
+```rust
+// into integers for z-order calculation
+fn calc_invsize(minx: f64, miny: f64, maxx: f64, maxy: f64) -> f64 {
+    let invsize = f64::max(maxx - minx, maxy - miny);
+    match invsize == 0.0 {
+        true => 0.0,
+        false => 1.0 / invsize,
+    }
+}
+```
+
+So invsize is actually 1/ itself. But ok. What if we pre-multiply by 
+32767.0 right here?
+
+```
+// into integers for z-order calculation
+fn calc_invsize(minx: f64, miny: f64, maxx: f64, maxy: f64) -> f64 {
+    let invsize = f64::max(maxx - minx, maxy - miny);
+    match invsize == 0.0 {
+        true => 0.0,
+        false => 32767.0 / invsize,
+    }
+}
+```
+
+Now what does the ASM become?
+
+```asm
+
+       │     _ZN7earcutr6zorder17hab1d711e708e67cdE():                         ▒
+       │         let mut x: i32 = ( ((xf - minx) * invsize)) as i32;           ▒
+       │       subsd  %xmm0,%xmm6                                              ▒
+       │       mulsd  %xmm2,%xmm6                                              ▒
+  0.71 │       cvttsd2si %xmm6,%eax                                            ▒
+       │         let mut y: i32 = ( ((yf - miny) * invsize)) as i32;           ▒
+  0.26 │       subsd  %xmm1,%xmm5                                              ▒
+  0.19 │       mulsd  %xmm2,%xmm5                                              ▒
+  0.97 │       cvttsd2si %xmm5,%esi
+```
+
+Wow... i got rid of a whole instruction inside a hot zone. What are the 
+results? First, cargo test showed there were no test failures. Then, 
+cargo bench water:
+
+
+```bash
+test bench_water                ... bench:   2,054,921 ns/iter (+/- 31,695)
+test bench_water2               ... bench:   1,854,223 ns/iter (+/- 227,359)
+test bench_water3               ... bench:      76,377 ns/iter (+/- 595)
+test bench_water3b              ... bench:       7,053 ns/iter (+/- 17)
+test bench_water4               ... bench:     530,306 ns/iter (+/- 24,262)
+test bench_water_huge           ... bench:  30,679,819 ns/iter (+/- 588,042)
+test bench_water_huge2          ... bench:  62,861,730 ns/iter (+/- 1,542,146)
+```
+
+Well, not great, its well within margin of error. But i'll take it. 
+Unlike optimizations above which reduced safety or took up more code, 
+this is actually reducing code by a few symbols. I like that type of 
+optimization better than removing safety.
+
+
+* translate to zero
+
+The zorder also has 'xf - minx'. What is Minx? Its the 'left most' point
+on the polygon input data. But why do we have to have it? Can we translate
+the whole polygon so minx is 0? Then we don't need this subtraction.
+
+Abit of work and, again perf reveals another instruction can be eliminated
+from zorder, the first two lines are just a single multiplication now:
+
+```asm
+       │     _ZN7earcutr6zorder17hf6b08d8ab5a82e32E():                         ◆
+       │         let mut x: i32 = ( ((xf ) * invsize)) as i32;                 ▒
+  0.35 │       mulsd  %xmm0,%xmm3                                              ▒
+  0.09 │       cvttsd2si %xmm3,%eax                                            ▒
+       │     _ZN4core3f6421_$LT$impl$u20$f64$GT$3max17h0592a962afedea39E():    ▒
+  0.24 │       orpd   %xmm4,%xmm2                                              ▒
+       │     _ZN7earcutr6zorder17hf6b08d8ab5a82e32E():                         ▒
+       │         let mut y: i32 = ( ((yf ) * invsize)) as i32;                 ▒
+  0.50 │       mulsd  %xmm0,%xmm2                                              ▒
+  0.39 │       cvttsd2si %xmm2,%esi 
+```
+
+not even sure what 'orpd' is doing in there... apparently the optimizer
+felt it could slip it in there without a problem 
+
+Benchmark results? Well tbh no visible change. It proves that this
+eliminating instructions is not always going to save  time in the running.
+
+But can we go further?
+
+Look at the zorder function.. it's using 32 bit numbers and shifting.
+
+```rust 
+    x = (x | (x << 8)) & 0x00FF00FF;
+    x = (x | (x << 4)) & 0x0F0F0F0F;
+    x = (x | (x << 2)) & 0x33333333;
+    x = (x | (x << 1)) & 0x55555555;
+
+    y = (y | (y << 8)) & 0x00FF00FF;
+    y = (y | (y << 4)) & 0x0F0F0F0F;
+    y = (y | (y << 2)) & 0x33333333;
+    y = (y | (y << 1)) & 0x55555555;
+```
+
+What if i combined these?
+
+```rust 
+
+    let mut x: i64 = ( ((xf ) * invsize)) as i64;
+    let mut y: i64 = ( ((yf ) * invsize)) as i64;
+    let mut xy:i64 = x << 32 | y;
+
+    xy = (xy | (xy << 8)) & 0x00FF00FF00FF00FF;
+    xy = (xy | (xy << 4)) & 0x0F0F0F0F0F0F0F0F;
+    xy = (xy | (xy << 2)) & 0x3333333333333333;
+    xy = (xy | (xy << 1)) & 0x5555555555555555;
+
+    let x32: i32 =(  xy >> 32 ) as i32;
+    let y32: i32 =(  xy & 0x00000000FFFFFFFF ) as i32;
+
+```
+
+
+```asm
+  0.09 │       mov    %rax,%rsi                                                ▒
+  0.46 │       shl    $0x8,%rsi                                                ▒
+  0.70 │       or     %rax,%rsi                                                ▒
+  0.29 │       and    %rbx,%rsi                                                ▒
+       │         xy = (xy | (xy << 4)) & 0x0F0F0F0F0F0F0F0F;                   ◆
+  0.04 │       mov    %rsi,%rax                                                ▒
+  0.26 │       shl    $0x4,%rax                                                ▒
+  0.70 │       or     %rsi,%rax                                                ▒
+  0.13 │       and    %r14,%rax                                                ▒
+       │         xy = (xy | (xy << 2)) & 0x3333333333333333;                   ▒
+  0.31 │       lea    0x0(,%rax,4),%rsi                                        ▒
+  0.40 │       or     %rax,%rsi                                                ▒
+  0.29 │       and    %r11,%rsi                                                ▒
+       │         xy = (xy | (xy << 1)) & 0x5555555555555555;                   ▒
+  0.33 │       lea    (%rsi,%rsi,1),%rax                                       ▒
+  0.24 │       or     %rsi,%rax                                                ▒
+       │             let x32: i32 =(  xy >> 32 ) as i32;                       ▒
+  0.02 │       mov    %rax,%rsi                                                ▒
+  0.24 │       shr    $0x20,%rsi                                               ▒
+  0.57 │       and    $0x55555555,%esi                                         ▒
+       │         x32 | (y32 << 1)                                              ▒
+       │       and    $0x55555555,%eax
+```
+
+```bash
+test bench_water                ... bench:   2,056,546 ns/iter (+/- 31,190)
+test bench_water2               ... bench:   1,789,347 ns/iter (+/- 11,558)
+test bench_water3               ... bench:      78,216 ns/iter (+/- 637)
+test bench_water3b              ... bench:       7,170 ns/iter (+/- 59)
+test bench_water4               ... bench:     522,485 ns/iter (+/- 5,929)
+test bench_water_huge           ... bench:  30,443,739 ns/iter (+/- 730,965)
+test bench_water_huge2          ... bench:  61,979,392 ns/iter (+/- 1,704,953)
+```
+
+again, not great, but i'll take it.
+
+* freelist
+
+I thought i would be clever and during remove_node, create a list of
+removed nodes. Turns out, even though we are faking a linked list
+inside a vector... we dont need a freelist of removed nodes. Except
+for debugging and development when dumping the internal structure of
+the nodes to printout, we dont need freelist at all. Removing it saved
+a few percent.
+
+* NULL
+
+For Null pointer, well, I made an index of 0x7774917.. That's "magic" in
+l33tspeak. However. Internal CPU sometimes prefer numbers like 0 or
+FFFFFFFFFF to compare bits. Changing this to ffffffff... brought another
+few percent.
+
+```bash
+test bench_water                ... bench:   2,033,630 ns/iter (+/- 40,087)
+test bench_water2               ... bench:   1,778,138 ns/iter (+/- 133,746)
+test bench_water3               ... bench:      74,565 ns/iter (+/- 695)
+test bench_water3b              ... bench:       6,588 ns/iter (+/- 68)
+test bench_water4               ... bench:     514,063 ns/iter (+/- 2,866)
+test bench_water_huge           ... bench:  30,305,755 ns/iter (+/- 749,417)
+test bench_water_huge2          ... bench:  61,937,131 ns/iter (+/- 2,259,247)
+```
+
+* the main earcut loop
+
+This is the 'next most' hot section after is_earcut_hashed and zorder.
+Why is it so long though? It has numerous ifs, thens, elses. Can it
+be simplified?
+
+It turns out, yes. One optimization of C++ earcut is that if there are
+more than 80 points, they do not use the hashed_earcut. This results in 
+if then else. What if we just ignore that and always use the hash
+version? For tiny shapes like water3b we lose a little speed, but for
+big shapes ... we gain.
+
+```bash
+test bench_water                ... bench:   1,979,939 ns/iter (+/- 43,625)
+test bench_water2               ... bench:   1,686,064 ns/iter (+/- 11,793)
+test bench_water3               ... bench:      88,216 ns/iter (+/- 14,474)
+test bench_water3b              ... bench:       6,393 ns/iter (+/- 27)
+test bench_water4               ... bench:     497,426 ns/iter (+/- 17,692)
+test bench_water_huge           ... bench:  30,083,359 ns/iter (+/- 746,826)
+test bench_water_huge2          ... bench:  61,794,920 ns/iter (+/- 2,600,562)
+```
+
+For some shapes we are now within a percent of C++. 
+
+* NULL Node
+
+Instead of NULL being ffffffff.. what if it was 000000.. and what if...
+dereferencing a null pointer to a node was ... well.. perfectly valid?
+What if there was, in fact, an object at address 0x00000000.. in our case
+we are using a vector, not RAM itself, so we can even put an object
+at 0x000000000. We can put a node there. We can call it the 'null node'.
+It is just like any other node, except that it is never part of a ring.
+
+What does this do? Well, it eliminates two branch conditions from
+remove_node()!
+
+        let prz = node!(self, p).prevz_idx;
+        let nxz = node!(self, p).nextz_idx;
+		if prz!=NULL {nodemut!(self, prz).nextz_idx = nxz;}
+        if prz!=NULL {nodemut!(self, nxz).prevz_idx = prz;}
+
+becomes
+
+        let prz = node!(self, p).prevz_idx;
+        let nxz = node!(self, p).nextz_idx;
+		nodemut!(self, prz).nextz_idx = nxz;
+        nodemut!(self, nxz).prevz_idx = prz;
+
+So if someone removes a node adjacent to the null node, the null node's
+nextz_idx and prevz_idx are modified... but it doesnt matter because
+they are never used.
+
+
+## This triangulator in other languages
+
+- [mapbox/earcut](https://github.com/mapbox/earcut) MapBox Original javascript
+- [mapbox/earcut.hpp](https://github.com/mapbox/earcut.hpp) MapBox C++11
 
 
 Thanks
