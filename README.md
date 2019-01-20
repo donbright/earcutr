@@ -165,10 +165,10 @@ during conversion from base 10 to 32-bit base 2.
 
 This triangulator is built primarily as an exercise in porting 
 javascript to Rust. It is supposed to produce exacly the same output as 
-the javascript version, thanks to the test data supplied with the 
-original javascript code. The speed is roughly comparable with 
-Mapbox's C++ version of earcut, earcut.hpp, except for tiny polygons where
-the speed is much slower ( microseconds ).
+the javascript version, thanks to the large amount of test data supplied 
+with the original javascript code. The speed is comparable with Mapbox's 
+C++ version of earcut, earcut.hpp, except for tiny polygons where the 
+speed is much slower.
 
 If you want to get correct triangulation even on very bad data with lots 
 of self-intersections and earcutr is not precise enough, take a look at 
@@ -208,13 +208,13 @@ To run benchmarks:
 ```bash
 $ cargo bench
 ...
-test bench_water                ... bench:   1,968,376 ns/iter (+/- 29,748)
-test bench_water2               ... bench:   1,497,592 ns/iter (+/- 18,407)
-test bench_water3               ... bench:      70,722 ns/iter (+/- 454)
-test bench_water3b              ... bench:       7,759 ns/iter (+/- 76)
-test bench_water4               ... bench:     501,038 ns/iter (+/- 8,171)
-test bench_water_huge           ... bench:  30,149,718 ns/iter (+/- 555,441)
-test bench_water_huge2          ... bench:  61,650,212 ns/iter (+/- 1,509,467)
+test bench_water                ... bench:   1,886,095 ns/iter (+/- 48,910)
+test bench_water2               ... bench:   1,455,139 ns/iter (+/- 8,578)
+test bench_water3               ... bench:      65,432 ns/iter (+/- 851)
+test bench_water3b              ... bench:       7,236 ns/iter (+/- 30)
+test bench_water4               ... bench:     504,135 ns/iter (+/- 29,033)
+test bench_water_huge           ... bench:  26,974,404 ns/iter (+/- 569,252)
+test bench_water_huge2          ... bench:  53,630,310 ns/iter (+/- 1,818,475)
 ```
 
 Bench note: As of this writing, benchmarking is not in Stable Rust, so 
@@ -259,22 +259,21 @@ C++ Earcut measures in iterations per second. To convert:
 So, converting the above:
 
 ____polygon______earcut.hpp_-O2__libtessc++_-O2___Rust_earcutr_release
-| water      |  1,831,501 ns/i  |  9,615,384 ns/i |   1,968,376 ns/i |
-| water2     |  1,626,016 ns/i  |  1,694,915 ns/i |   1,497,592 ns/i |
-| water3     |     53,140 ns/i  |    153,869 ns/i |      70,722 ns/i |
-| water3b    |      4,183 ns/i  |     20,143 ns/i |       7,759 ns/i |
-| water4     |    475,511 ns/i  |    871,839 ns/i |     501,038 ns/i |
-| water_huge | 26,315,789 ns/i  | 26,315,789 ns/i |  30,149,718 ns/i |
-| water_huge2| 55,555,555 ns/i  | 20,000,000 ns/i |  61,650,212 ns/i |
+| water      |  1,831,501 ns/i  |  9,615,384 ns/i |   1,886,095 ns/i |
+| water2     |  1,626,016 ns/i  |  1,694,915 ns/i |   1,455,139 ns/i |
+| water3     |     53,140 ns/i  |    153,869 ns/i |      65,432 ns/i |
+| water3b    |      4,183 ns/i  |     20,143 ns/i |       7,236 ns/i |
+| water4     |    475,511 ns/i  |    871,839 ns/i |     504,135 ns/i |
+| water_huge | 26,315,789 ns/i  | 26,315,789 ns/i |  26,974,404 ns/i |
+| water_huge2| 55,555,555 ns/i  | 20,000,000 ns/i |  53,630,310 ns/i |
 ----------------------------------------------------------------------
 ns/i = nanoseconds per iteration
-
 ```
 
 If the calculations are correct in the Rust benchmark, and the 
-conversion is correct, then the Rust code is 5-10% slower than Earcut C++
-for most big shapes, and 20-50% slower for tiny shapes. However for water2,
-this Rust code is actually about 10% faster than C++. 
+conversion is correct, then the Rust code is about 20-40% slower than 
+C++ version of Earcut for tiny shapes, 5% slower for some large shapes.. 
+and 5%-10% faster for certain large shapes like water_huge2 and water2.
 
 #### Profiling
 
@@ -307,7 +306,7 @@ sudo perf report
 #### Profiling results
 
 Please see [OPTO.md] if you wish a long description of the optimization
-rpcoess. Here are a few other highlights from testing:
+process. Here are a few other highlights:
 
 * is_earcut_hashed() is hot
 
@@ -318,35 +317,36 @@ spent inside is_earcut_hashed(), which is determining whether an ear is
 * Zorder is also hot
 
 The second major speed boost comes from Callgrind/kcachegrind in 
-particular revealed that the zorder() function was a source of some 
-consternation. In particular the conversion from floating point 64 bit 
-numbers in the input arguments, to the 32 bit integer, can be tricky 
-since the conversion can be optimized in various unusual ways
+particular revealed that the zorder() function was a source of some a 
+lot of work by the CPU. In particular the conversion from floating point 
+64 bit numbers in the input arguments, to the 32 bit integer, can be 
+tricky since the conversion can be optimized in various unusual ways
 
 * inline by-hand is important
 
 Most of the time in C++ you can assume the compiler figures out 
-inlining. Here, however, the point_in_triangle and area function inside 
-ear_checker wont get inlined unless specifically indicated with the 
-inline macro
+inlining. In Rust, however, the point_in_triangle and area function 
+inside ear_checker wont get inlined unless specifically indicated with 
+the inline macro
 
 * Vector [Indexing] and bounds checking in Rust
 
-This linked-list on vector system has been implemented with macros 
-called node!() next!() prev!() etc, so that it is somewhat easy to 
-switch to unsafe get_unchecked() from the vector instead of the standard 
-bracket operator [] which includes bounds checking. Many, many tests at 
-various optimization stages show that the difference is so minisicule 
-that is typically within the measurement error. This is in a program 
-that runs millions and millions of indexing operations.
+As mentioned, this code is implemented as a double-linked list sitting on
+top of a vector, an the 'pointers' are actually indexes into the vector.
+It has been written so that its easy to switch to 'unsafe' vector indexing
+at any time, to compare speed with 'safe' (not bounds checked) indexing. 
+The result of this comparison testing is that unsafe indexing does not
+significantly affect speed. The benchmarks were within measurement error.
 
 * Iteration vs loops
 
 This code has converted several javascript for loops into Rust 
 iteration. The read-only immutable iterator was custom built, which is 
-relatively easy because Rust is designed to make it easy. A Mutable
-iterator however was a challenge not yet met. But the end result 
-is much less code used, with no visible negative performance.
+relatively easy because Rust is designed to make it easy. A Mutable 
+iterator however was a challenge not yet met. But the end result is much 
+less code used, with no visible negative performance. Actually in some 
+functions, like find_hole_bridge, switching to iteration was a pretty 
+good speed increase, of several percentage points for some large inputs.
 
 ## This triangulator in other languages
 
