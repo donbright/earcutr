@@ -8,7 +8,7 @@ static DEBUG: usize = 0; // dlogs get optimized away at 0
 type NodeIdx = usize;
 type VertIdx = usize;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct Node {
     i: VertIdx,         // vertex index in flat one-d array of 64bit float coords
     x: f64,             // vertex x coordinate
@@ -20,6 +20,7 @@ struct Node {
     nextz_idx: NodeIdx, // next node in z-order
     steiner: bool,      // indicates whether this is a steiner point
     idx: NodeIdx,       // index within LinkedLists vector that holds all nodes
+    mark: bool,
 }
 
 impl Node {
@@ -35,6 +36,7 @@ impl Node {
             prevz_idx: NULL,
             steiner: false,
             idx: idx,
+            mark: true,
         }
     }
 }
@@ -131,6 +133,7 @@ impl LinkedLists {
         nodemut!(self, ni).prev_idx = pi;
         nodemut!(self, pz).nextz_idx = nz;
         nodemut!(self, nz).prevz_idx = pz;
+        nodemut!(self, p_idx).mark = false;
     }
     fn new(size_hint: usize) -> LinkedLists {
         let mut ll = LinkedLists {
@@ -147,6 +150,7 @@ impl LinkedLists {
             nextz_idx: 0,
             prevz_idx: 0,
             steiner: false,
+            mark: false,
             idx: 0,
         });
         ll
@@ -311,17 +315,17 @@ fn earcut_linked(
 fn index_curve(ll: &mut LinkedLists, start: NodeIdx, invsize: f64) {
     let mut p = start;
     loop {
-        if noderef!(ll, p).z == 0 {
-            nodemut!(ll, p).z = zorder(noderef!(ll, p).x, noderef!(ll, p).y, invsize);
+        let pn = node!(ll, p).clone();
+        if pn.z == 0 {
+            nodemut!(ll, p).z = zorder(pn.x, pn.y, invsize);
         }
-        nodemut!(ll, p).prevz_idx = noderef!(ll, p).prev_idx;
-        nodemut!(ll, p).nextz_idx = noderef!(ll, p).next_idx;
-        p = noderef!(ll, p).next_idx;
+        nodemut!(ll, p).prevz_idx = pn.prev_idx;
+        nodemut!(ll, p).nextz_idx = pn.next_idx;
+        p = pn.next_idx;
         if p == start {
             break;
         }
     }
-
     let pzi = prevz!(ll, p).idx;
     nodemut!(ll, pzi).nextz_idx = NULL;
     nodemut!(ll, p).prevz_idx = NULL;
@@ -578,7 +582,6 @@ fn linked_list_add_contour(
 
 // z-order of a point given coords and inverse of the longer side of
 // data bbox
-
 #[inline(always)]
 fn zorder(xf: f64, yf: f64, invsize: f64) -> i32 {
     // coords are transformed into non-negative 15-bit integer range
@@ -610,7 +613,7 @@ pub fn earcut(data: &Vec<f64>, hole_indices: &Vec<usize>, dims: usize) -> Vec<us
     };
 
     let (mut ll, mut outer_node) = linked_list(data, 0, outer_len, true);
-    let mut triangles: Vec<usize> = Vec::new();
+    let mut triangles: Vec<usize> = Vec::with_capacity(data.len() / DIM);
     if ll.nodes.len() == 1 || DIM != dims {
         return triangles;
     }
@@ -624,12 +627,10 @@ pub fn earcut(data: &Vec<f64>, hole_indices: &Vec<usize>, dims: usize) -> Vec<us
     let miny = ll.nodes.iter().fold(std::f64::MAX, |m, n| f64::min(m, n.y));
     let invsize = calc_invsize(minx, miny, maxx, maxy);
 
-    // invsize does not depend on translation in space
-    // translate all points so min is 0,0, makes earcut faster test
-    for mut n in &mut ll.nodes {
-        n.x -= minx;
-        n.y -= miny;
-    }
+    // translate all points so min is 0,0. prevents subtraction inside
+    // zorder. also note invsize does not depend on translation in space
+    ll.nodes.iter_mut().for_each(|n| n.x -= minx);
+    ll.nodes.iter_mut().for_each(|n| n.y -= miny);
 
     earcut_linked(&mut ll, outer_node, &mut triangles, invsize, 0);
     triangles
@@ -662,7 +663,7 @@ fn cure_local_intersections(
     let mut p = instart;
     let mut start = instart;
     loop {
-        let a = noderef!(ll, p).prev_idx;
+        let a = node!(ll, p).prev_idx;
         let b = next!(ll, p).next_idx;
 
         if !equals(noderef!(ll, a), noderef!(ll, b))
@@ -736,55 +737,45 @@ fn split_earcut(
 
 // find a bridge between vertices that connects hole with an outer ring
 // and and link it
-fn eliminate_hole(ll: &mut LinkedLists, hole: NodeIdx, outer_node: NodeIdx) {
-    let test_node = find_hole_bridge(ll, noderef!(ll, hole), outer_node);
-    if test_node != NULL {
-        let b = split_bridge_polygon(ll, test_node, hole);
-        let bn = next!(ll, b).idx;
-        filter_points(ll, b, bn);
-    }
+fn eliminate_hole(ll: &mut LinkedLists, hole_idx: NodeIdx, outer_node_idx: NodeIdx) {
+    let test_idx = find_hole_bridge(ll, hole_idx, outer_node_idx);
+    let b = split_bridge_polygon(ll, test_idx, hole_idx);
+    let ni = node!(ll, b).next_idx;
+    filter_points(ll, b, ni);
 }
 
 // David Eberly's algorithm for finding a bridge between hole and outer polygon
-fn find_hole_bridge(ll: &LinkedLists, hole: &Node, outer_node: NodeIdx) -> NodeIdx {
-    if outer_node >= ll.nodes.len() {
-        return NULL;
-    }
+fn find_hole_bridge(ll: &LinkedLists, hole: NodeIdx, outer_node: NodeIdx) -> NodeIdx {
     let mut p = outer_node;
-    let hx = hole.x;
-    let hy = hole.y;
+    let hx = node!(ll, hole).x;
+    let hy = node!(ll, hole).y;
     let mut qx: f64 = std::f64::NEG_INFINITY;
     let mut m: NodeIdx = NULL;
 
     // find a segment intersected by a ray from the hole's leftmost
     // point to the left; segment's endpoint with lesser x will be
     // potential connection point
-
-    loop {
-        let (px, py) = (noderef!(ll, p).x, noderef!(ll, p).y);
-        if (hy <= py) && (hy >= next!(ll, p).y) && (next!(ll, p).y != py) {
-            let x = px + (hy - py) * (next!(ll, p).x - px) / (next!(ll, p).y - py);
-
-            if (x <= hx) && (x > qx) {
-                qx = x;
-                if x == hx {
-                    if hy == py {
-                        return p;
-                    }
-                    if hy == next!(ll, p).y {
-                        return next!(ll, p).idx;
-                    };
-                }
-                if px < next!(ll, p).x {
-                    m = p
-                } else {
-                    m = next!(ll, p).idx
-                };
+    let calcx =
+        |p: &Node| p.x + (hy - p.y) * (next!(ll, p.idx).x - p.x) / (next!(ll, p.idx).y - p.y);
+    for p in ll
+        .iter_range(p..outer_node)
+        .filter(|p| hy <= p.y)
+        .filter(|p| hy >= next!(ll, p.idx).y)
+        .filter(|p| next!(ll, p.idx).y != p.y)
+        .filter(|p| calcx(p) <= hx)
+    {
+        if qx < calcx(p) {
+            qx = calcx(p);
+            if qx == hx && hy == p.y {
+                return p.idx;
+            } else if qx == hx && hy == node!(ll, p.next_idx).y {
+                return p.next_idx;
             }
-        }
-        p = next!(ll, p).idx;
-        if p == outer_node {
-            break;
+            m = if p.x < next!(ll, p.idx).x {
+                p.idx
+            } else {
+                next!(ll, p.idx).idx
+            };
         }
     }
 
@@ -802,42 +793,27 @@ fn find_hole_bridge(ll: &LinkedLists, hole: &Node, outer_node: NodeIdx) -> NodeI
     // a valid connection; otherwise choose the point of the minimum
     // angle with the ray as connection point
 
-    let stop = m;
-    let mx = noderef!(ll, m).x;
-    let my = noderef!(ll, m).y;
-    let mut tan_min = std::f64::INFINITY;
-    let mut tan;
-    //    let mut tan = 0.0;
-
+    let mp = Node::new(0, node!(ll,m).x, node!(ll,m).y, 0);
     p = next!(ll, m).idx;
-
-    let x1 = if hy < my { hx } else { qx };
-    let x2 = if hy < my { qx } else { hx };
+    let x1 = if hy < mp.y { hx } else { qx };
+    let x2 = if hy < mp.y { qx } else { hx };
     let n1 = Node::new(0, x1, hy, 0);
-    let mp = Node::new(0, mx, my, 0);
     let n2 = Node::new(0, x2, hy, 0);
 
-    while p != stop {
-        let (px, py) = (noderef!(ll, p).x, noderef!(ll, p).y);
-
-        if (hx >= px)
-            && (px >= mx)
-            && (hx != px)
-            && point_in_triangle(&n1, &mp, &n2, noderef!(ll, p))
-        {
-            tan = (hy - py).abs() / (hx - px); // tangential
-
-            if ((tan < tan_min) || ((tan == tan_min) && (px > noderef!(ll, m).x)))
-                && locally_inside(ll, noderef!(ll, p), &hole)
+    let calctan = |p: &Node| (hy - p.y).abs() / (hx - p.x); // tangential
+    ll.iter_range(p..m)
+        .filter(|p| hx > p.x && p.x >= mp.x)
+		.filter(|p| point_in_triangle(&n1, &mp, &n2, &p))
+        .fold((m, std::f64::INFINITY), |(m, tan_min), p| {
+            if ((calctan(p) < tan_min) || (calctan(p) == tan_min && p.x > noderef!(ll, m).x))
+                && locally_inside(ll, &p, noderef!(ll, hole))
             {
-                m = p;
-                tan_min = tan;
+                (p.idx, calctan(p))
+            } else {
+                (m, tan_min)
             }
-        }
-        p = next!(ll, p).idx;
-    }
-
-    return m;
+        })
+        .0
 }
 
 // check if a diagonal between two polygon nodes is valid (lies in
@@ -1571,49 +1547,49 @@ mod tests {
     #[test]
     fn test_find_hole_bridge() {
         let m = vec![0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0];
-        let (ll, _) = linked_list(&m, 0, m.len(), true);
-        let hole = Node::new(0, 0.8, 0.8, NULL);
-        assert!(1 == find_hole_bridge(&ll, &hole, 1));
+        let (mut ll, _) = linked_list(&m, 0, m.len(), true);
+        let hole_idx = ll.insert_node(0, 0.8, 0.8, NULL);
+        assert!(1 == find_hole_bridge(&ll, hole_idx, 1));
 
         let m = vec![0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.4, 0.5];
-        let (ll, _) = linked_list(&m, 0, m.len(), true);
-        let hole = Node::new(0, 0.5, 0.5, NULL);
-        assert!(5 == find_hole_bridge(&ll, &hole, 1));
+        let (mut ll, _) = linked_list(&m, 0, m.len(), true);
+        let hole_idx = ll.insert_node(0, 0.5, 0.5, NULL);
+        assert!(5 == find_hole_bridge(&ll, hole_idx, 1));
 
         let m = vec![0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, -0.4, 0.5];
-        let (ll, _) = linked_list(&m, 0, m.len(), true);
-        let hole = Node::new(0, 0.5, 0.5, NULL);
-        assert!(5 == find_hole_bridge(&ll, &hole, 1));
+        let (mut ll, _) = linked_list(&m, 0, m.len(), true);
+        let hole_idx = ll.insert_node(0, 0.5, 0.5, NULL);
+        assert!(5 == find_hole_bridge(&ll, hole_idx, 1));
 
         let m = vec![
             0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, -0.1, 0.9, 0.1, 0.8, -0.1, 0.7, 0.1, 0.6, -0.1,
             0.5,
         ];
-        let (ll, _) = linked_list(&m, 0, m.len(), true);
-        let hole = Node::new(0, 0.5, 0.9, NULL);
-        assert!(5 == find_hole_bridge(&ll, &hole, 1));
-        let hole = Node::new(0, 0.2, 0.1, NULL);
-        assert!(9 == find_hole_bridge(&ll, &hole, 1));
-        let hole = Node::new(0, 0.2, 0.5, NULL);
-        assert!(9 == find_hole_bridge(&ll, &hole, 1));
-        let hole = Node::new(0, 0.2, 0.55, NULL);
-        assert!(9 == find_hole_bridge(&ll, &hole, 1));
-        let hole = Node::new(0, 0.2, 0.6, NULL);
-        assert!(8 == find_hole_bridge(&ll, &hole, 1));
-        let hole = Node::new(0, 0.2, 0.65, NULL);
-        assert!(7 == find_hole_bridge(&ll, &hole, 1));
-        let hole = Node::new(0, 0.2, 0.7, NULL);
-        assert!(7 == find_hole_bridge(&ll, &hole, 1));
-        let hole = Node::new(0, 0.2, 0.75, NULL);
-        assert!(7 == find_hole_bridge(&ll, &hole, 1));
-        let hole = Node::new(0, 0.2, 0.8, NULL);
-        assert!(6 == find_hole_bridge(&ll, &hole, 1));
-        let hole = Node::new(0, 0.2, 0.85, NULL);
-        assert!(5 == find_hole_bridge(&ll, &hole, 1));
-        let hole = Node::new(0, 0.2, 0.9, NULL);
-        assert!(5 == find_hole_bridge(&ll, &hole, 1));
-        let hole = Node::new(0, 0.2, 0.95, NULL);
-        assert!(5 == find_hole_bridge(&ll, &hole, 1));
+        let (mut ll, _) = linked_list(&m, 0, m.len(), true);
+        let hole_idx = ll.insert_node(0, 0.5, 0.9, NULL);
+        assert!(5 == find_hole_bridge(&ll, hole_idx, 1));
+        let hole_idx = ll.insert_node(0, 0.2, 0.1, NULL);
+        assert!(9 == find_hole_bridge(&ll, hole_idx, 1));
+        let hole_idx = ll.insert_node(0, 0.2, 0.5, NULL);
+        assert!(9 == find_hole_bridge(&ll, hole_idx, 1));
+        let hole_idx = ll.insert_node(0, 0.2, 0.55, NULL);
+        assert!(9 == find_hole_bridge(&ll, hole_idx, 1));
+        let hole_idx = ll.insert_node(0, 0.2, 0.6, NULL);
+        assert!(8 == find_hole_bridge(&ll, hole_idx, 1));
+        let hole_idx = ll.insert_node(0, 0.2, 0.65, NULL);
+        assert!(7 == find_hole_bridge(&ll, hole_idx, 1));
+        let hole_idx = ll.insert_node(0, 0.2, 0.7, NULL);
+        assert!(7 == find_hole_bridge(&ll, hole_idx, 1));
+        let hole_idx = ll.insert_node(0, 0.2, 0.75, NULL);
+        assert!(7 == find_hole_bridge(&ll, hole_idx, 1));
+        let hole_idx = ll.insert_node(0, 0.2, 0.8, NULL);
+        assert!(6 == find_hole_bridge(&ll, hole_idx, 1));
+        let hole_idx = ll.insert_node(0, 0.2, 0.85, NULL);
+        assert!(5 == find_hole_bridge(&ll, hole_idx, 1));
+        let hole_idx = ll.insert_node(0, 0.2, 0.9, NULL);
+        assert!(5 == find_hole_bridge(&ll, hole_idx, 1));
+        let hole_idx = ll.insert_node(0, 0.2, 0.95, NULL);
+        assert!(5 == find_hole_bridge(&ll, hole_idx, 1));
     }
 
     #[test]
@@ -1727,7 +1703,7 @@ mod tests {
         let mut triangles: Vec<usize> = Vec::new();
         cure_local_intersections(&mut ll, 0, &mut triangles);
         assert!(cycle_len(&ll, 1) == 7);
-        //        assert!(ll.freelist.len() == 0);
+        //        assert!(mut ll.freelist.len() == 0);
         assert!(triangles.len() == 0);
 
         // second test - we have three points that immediately cause
@@ -1737,7 +1713,7 @@ mod tests {
         let mut triangles: Vec<usize> = Vec::new();
         cure_local_intersections(&mut ll, 1, &mut triangles);
         assert!(cycle_len(&ll, 1) == 4);
-        //        assert!(ll.freelist.len() == 2);
+        //        assert!(mut ll.freelist.len() == 2);
         assert!(triangles.len() == 3);
     }
 
