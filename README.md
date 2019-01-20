@@ -22,7 +22,7 @@ Signature:
 * `vertices` is a flat array of vertex coordinates like `[x0,y0, x1,y1, x2,y2, ...]`.
 * `holes` is an array of hole _indices_ if any
   (e.g. `[5, 8]` for a 12-vertex input would mean one hole with vertices 5&ndash;7 and another with 8&ndash;11).
-* `dimensions` is the number of coordinates per vertex in the input array (`2` by default).
+* `dimensions` is the number of coordinates per vertex in the input array. Dimensions must be 2.
 
 Each group of three vertex indices in the resulting array forms a triangle.
 
@@ -30,10 +30,6 @@ Each group of three vertex indices in the resulting array forms a triangle.
 // triangulating a polygon with a hole
 earcutr::earcut(&vec![0.,0., 100.,0., 100.,100., 0.,100.,  20.,20., 80.,20., 80.,80., 20.,80.], &vec![4],2);
 // [3,0,4, 5,4,0, 3,4,7, 5,0,1, 2,3,7, 6,5,1, 2,7,6, 6,1,2]
-
-// triangulating a polygon with 3d coords
-earcutr::earcut(&vec![10.,0.,1., 0.,50.,2., 60.,60.,3., 70.,10.,4.], &vec![], 3);
-// [1,0,3, 3,2,1]
 ```
 
 If you pass a single vertex as a hole, Earcut treats it as a Steiner point. 
@@ -165,7 +161,7 @@ during conversion from base 10 to 32-bit base 2.
 
 This triangulator is built primarily as an exercise in porting 
 javascript to Rust. It is supposed to produce exacly the same output as 
-the javascript version, thanks to the large amount of test data supplied 
+the javascript version, by using the large amount of test data supplied 
 with the original javascript code. The speed is comparable with Mapbox's 
 C++ version of earcut, earcut.hpp, except for tiny polygons where the 
 speed is much slower.
