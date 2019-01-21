@@ -20,7 +20,6 @@ struct Node {
     nextz_idx: NodeIdx, // next node in z-order
     steiner: bool,      // indicates whether this is a steiner point
     idx: NodeIdx,       // index within LinkedLists vector that holds all nodes
-    mark: bool,
 }
 
 impl Node {
@@ -36,7 +35,6 @@ impl Node {
             prevz_idx: NULL,
             steiner: false,
             idx: idx,
-            mark: true,
         }
     }
 }
@@ -74,39 +72,45 @@ macro_rules! nodemut {
 }
 // Note: none of the following macros work for Left-Hand-Side of assignment.
 macro_rules! next {
-    ($ll:ident,$idx:expr) => {
+    ($ll:expr,$idx:expr) => {
         $ll.nodes[$ll.nodes[$idx].next_idx]
         //nunsafe{$ll.nodes.get_unchecked($ll.nodes.get_unchecked($idx).next_idx)}
     };
 }
 macro_rules! nextref {
-    ($ll:ident,$idx:expr) => {
+    ($ll:expr,$idx:expr) => {
         &$ll.nodes[$ll.nodes[$idx].next_idx]
         //unsafe{&$ll.nodes.get_unchecked($ll.nodes.get_unchecked($idx).next_idx)}
     };
 }
 macro_rules! prev {
-    ($ll:ident,$idx:expr) => {
+    ($ll:expr,$idx:expr) => {
         $ll.nodes[$ll.nodes[$idx].prev_idx]
         //unsafe{$ll.nodes.get_unchecked($ll.nodes.get_unchecked($idx).prev_idx)}
     };
 }
 macro_rules! prevref {
-    ($ll:ident,$idx:expr) => {
+    ($ll:expr,$idx:expr) => {
         &$ll.nodes[$ll.nodes[$idx].prev_idx]
         //unsafe{&$ll.nodes.get_unchecked($ll.nodes.get_unchecked($idx).prev_idx)}
     };
 }
 macro_rules! prevz {
-    ($ll:ident,$idx:expr) => {
+    ($ll:expr,$idx:expr) => {
         &$ll.nodes[$ll.nodes[$idx].prevz_idx]
         //unsafe{$ll.nodes.get_unchecked($ll.nodes.get_unchecked($idx).prevz_idx)}
     };
 }
 
 impl LinkedLists {
-    fn iter_range(&self, r: std::ops::Range<NodeIdx>) -> NodeIterator {
+    fn iter(&self, r: std::ops::Range<NodeIdx>) -> NodeIterator {
         return NodeIterator::new(self, r.start, r.end);
+    }
+    fn iter_pairs(&self, r: std::ops::Range<NodeIdx>) -> NodePairIterator {
+        return NodePairIterator::new(self, r.start, r.end);
+    }
+    fn iter_mut(&mut self, r: std::ops::Range<NodeIdx>) -> NodeMutIterator {
+        return NodeMutIterator::new(self, r.start, r.end);
     }
     fn insert_node(&mut self, i: VertIdx, x: f64, y: f64, last: NodeIdx) -> NodeIdx {
         let mut p = Node::new(i, x, y, self.nodes.len());
@@ -133,7 +137,6 @@ impl LinkedLists {
         nodemut!(self, ni).prev_idx = pi;
         nodemut!(self, pz).nextz_idx = nz;
         nodemut!(self, nz).prevz_idx = pz;
-        nodemut!(self, p_idx).mark = false;
     }
     fn new(size_hint: usize) -> LinkedLists {
         let mut ll = LinkedLists {
@@ -150,7 +153,6 @@ impl LinkedLists {
             nextz_idx: 0,
             prevz_idx: 0,
             steiner: false,
-            mark: false,
             idx: 0,
         });
         ll
@@ -190,6 +192,81 @@ impl<'a> Iterator for NodeIterator<'a> {
     }
 }
 
+//////////////
+
+struct NodePairIterator<'a> {
+    cur: NodeIdx,
+    end: NodeIdx,
+    ll: &'a LinkedLists,
+    pending_result: Option<(&'a Node,&'a Node)>,
+}
+
+impl<'a> NodePairIterator<'a> {
+    fn new(ll: &LinkedLists, start: NodeIdx, end: NodeIdx) -> NodePairIterator {
+        NodePairIterator {
+            pending_result: Some((noderef!(ll, start),nextref!(ll,start))),
+            cur: start,
+            end: end,
+            ll,
+        }
+    }
+}
+
+impl<'a> Iterator for NodePairIterator<'a> {
+    type Item = (&'a Node,&'a Node);
+    fn next(&mut self) -> Option<Self::Item> {
+        self.cur = node!(self.ll, self.cur).next_idx;
+        let cur_result = self.pending_result;
+        if self.cur == self.end {
+            // only one branch, saves time
+            self.pending_result = None;
+        } else {
+            self.pending_result = Some(
+(noderef!(self.ll,self.cur),nextref!(self.ll, self.cur))
+)
+        }
+        cur_result
+    }
+}
+
+//////////////
+
+struct NodeMutIterator<'a> {
+    cur: NodeIdx,
+    end: NodeIdx,
+    ll: &'a mut LinkedLists,
+    pending_result_ptr: *mut Node,
+}
+
+impl<'a> NodeMutIterator<'a> {
+    fn new(ll: &mut LinkedLists, start: NodeIdx, end: NodeIdx) -> NodeMutIterator {
+        NodeMutIterator {
+            pending_result_ptr: &mut ll.nodes[start],
+            cur: start,
+            end: end,
+            ll,
+        }
+    }
+}
+
+impl<'a> Iterator for NodeMutIterator<'a> {
+    type Item = &'a mut Node;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.cur = noderef!(self.ll, self.cur).next_idx;
+        let cur_result_ptr = self.pending_result_ptr;
+        if self.cur == self.end {
+            self.pending_result_ptr = &mut self.ll.nodes[NULL];
+        } else {
+            self.pending_result_ptr = &mut self.ll.nodes[self.cur];
+        }
+        if cur_result_ptr == &mut self.ll.nodes[NULL] {
+            None
+        } else {
+            unsafe { Some(&mut *cur_result_ptr) }
+        }
+    }
+}
+
 fn compare_x(a: &Node, b: &Node) -> std::cmp::Ordering {
     return a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal);
 }
@@ -216,10 +293,7 @@ fn eliminate_holes(
         if list == noderef!(ll, list).next_idx {
             nodemut!(ll, list).steiner = true;
         }
-        let leftmost = ll
-            .iter_range(list..list)
-            .min_by(|p, q| compare_x(p, q))
-            .unwrap();
+        let leftmost = ll.iter(list..list).min_by(|p, q| compare_x(p, q)).unwrap();
 
         queue.push(leftmost.clone());
     }
@@ -314,18 +388,13 @@ fn earcut_linked(
 //fn index_curve(ll: &mut LinkedLists, start: NodeIdx, minx: f64, miny: f64, invsize: f64) {
 fn index_curve(ll: &mut LinkedLists, start: NodeIdx, invsize: f64) {
     let mut p = start;
-    loop {
-        let pn = node!(ll, p).clone();
-        if pn.z == 0 {
-            nodemut!(ll, p).z = zorder(pn.x, pn.y, invsize);
+	ll.iter_mut(start..start).for_each(|p| {
+        if p.z == 0 {
+            p.z = zorder(p.x, p.y, invsize);
         }
-        nodemut!(ll, p).prevz_idx = pn.prev_idx;
-        nodemut!(ll, p).nextz_idx = pn.next_idx;
-        p = pn.next_idx;
-        if p == start {
-            break;
-        }
-    }
+        p.prevz_idx = p.prev_idx;
+        p.nextz_idx = p.next_idx;
+    });
     let pzi = prevz!(ll, p).idx;
     nodemut!(ll, pzi).nextz_idx = NULL;
     nodemut!(ll, p).prevz_idx = NULL;
@@ -402,7 +471,7 @@ fn is_ear(ll: &LinkedLists, prev: NodeIdx, ear: NodeIdx, next: NodeIdx) -> bool 
     let (a, b, c) = (noderef!(ll, prev), noderef!(ll, ear), noderef!(ll, next));
     match area(a, b, c) >= 0.0 {
         true => false, // reflex, cant be ear
-        false => !ll.iter_range(c.next_idx..a.idx).any(|p| {
+        false => !ll.iter(c.next_idx..a.idx).any(|p| {
             (area(prevref!(ll, p.idx), &p, nextref!(ll, p.idx)) >= 0.0)
                 && point_in_triangle(&a, &b, &c, &p)
         }),
@@ -757,24 +826,23 @@ fn find_hole_bridge(ll: &LinkedLists, hole: NodeIdx, outer_node: NodeIdx) -> Nod
     // potential connection point
     let calcx =
         |p: &Node| p.x + (hy - p.y) * (next!(ll, p.idx).x - p.x) / (next!(ll, p.idx).y - p.y);
-    for p in ll
-        .iter_range(p..outer_node)
-        .filter(|p| hy <= p.y)
-        .filter(|p| hy >= next!(ll, p.idx).y)
-        .filter(|p| next!(ll, p.idx).y != p.y)
-        .filter(|p| calcx(p) <= hx)
+    for (p,n) in ll
+        .iter_pairs(p..outer_node)
+        .filter(|(p,n)| hy <= p.y && hy >= n.y)
+        .filter(|(p,n)| n.y != p.y)
+        .filter(|(p,_)| calcx(p) <= hx)
     {
         if qx < calcx(p) {
             qx = calcx(p);
             if qx == hx && hy == p.y {
                 return p.idx;
-            } else if qx == hx && hy == node!(ll, p.next_idx).y {
+            } else if qx == hx && hy == n.y {
                 return p.next_idx;
             }
-            m = if p.x < next!(ll, p.idx).x {
+            m = if p.x < n.x {
                 p.idx
             } else {
-                next!(ll, p.idx).idx
+                n.idx
             };
         }
     }
@@ -793,7 +861,7 @@ fn find_hole_bridge(ll: &LinkedLists, hole: NodeIdx, outer_node: NodeIdx) -> Nod
     // a valid connection; otherwise choose the point of the minimum
     // angle with the ray as connection point
 
-    let mp = Node::new(0, node!(ll,m).x, node!(ll,m).y, 0);
+    let mp = Node::new(0, node!(ll, m).x, node!(ll, m).y, 0);
     p = next!(ll, m).idx;
     let x1 = if hy < mp.y { hx } else { qx };
     let x2 = if hy < mp.y { qx } else { hx };
@@ -801,9 +869,9 @@ fn find_hole_bridge(ll: &LinkedLists, hole: NodeIdx, outer_node: NodeIdx) -> Nod
     let n2 = Node::new(0, x2, hy, 0);
 
     let calctan = |p: &Node| (hy - p.y).abs() / (hx - p.x); // tangential
-    ll.iter_range(p..m)
+    ll.iter(p..m)
         .filter(|p| hx > p.x && p.x >= mp.x)
-		.filter(|p| point_in_triangle(&n1, &mp, &n2, &p))
+        .filter(|p| point_in_triangle(&n1, &mp, &n2, &p))
         .fold((m, std::f64::INFINITY), |(m, tan_min), p| {
             if ((calctan(p) < tan_min) || (calctan(p) == tan_min && p.x > noderef!(ll, m).x))
                 && locally_inside(ll, &p, noderef!(ll, hole))
@@ -867,12 +935,12 @@ fn pseudo_intersects(p1: &Node, q1: &Node, p2: &Node, q2: &Node) -> bool {
 
 // check if a polygon diagonal intersects any polygon segments
 fn intersects_polygon(ll: &LinkedLists, a: &Node, b: &Node) -> bool {
-    ll.iter_range(a.idx..a.idx).any(|p| {
+    ll.iter_pairs(a.idx..a.idx).any(|(p,n)| {
         p.i != a.i
-            && next!(ll, p.idx).i != a.i
+            && n.i != a.i
             && p.i != b.i
-            && next!(ll, p.idx).i != b.i
-            && pseudo_intersects(&p, noderef!(ll, p.next_idx), a, b)
+            && n.i != b.i
+            && pseudo_intersects(&p, &n, a, b)
     })
 }
 
@@ -887,13 +955,13 @@ fn locally_inside(ll: &LinkedLists, a: &Node, b: &Node) -> bool {
 // check if the middle point of a polygon diagonal is inside the polygon
 fn middle_inside(ll: &LinkedLists, a: &Node, b: &Node) -> bool {
     let (mx, my) = ((a.x + b.x) / 2.0, (a.y + b.y) / 2.0);
-    ll.iter_range(a.idx..a.idx).fold(false, |inside, p| {
-        inside
-            ^ (((p.y > my) != (next!(ll, p.idx).y > my))
-                && (next!(ll, p.idx).y != p.y)
-                && (mx
-                    < ((next!(ll, p.idx).x - p.x) * (my - p.y) / (next!(ll, p.idx).y - p.y) + p.x)))
-    })
+	ll.iter_pairs(a.idx..a.idx)
+        .filter(|(p,n)| (p.y > my) != (n.y > my))
+        .filter(|(p,n)| n.y != p.y)
+        .filter(|(p,n)| {
+            mx < ((n.x - p.x) * (my - p.y) / (n.y - p.y) + p.x)
+        })
+        .fold(false, |inside, _| !inside)
 }
 
 /* link two polygon vertices with a bridge;
@@ -1102,7 +1170,7 @@ fn dump(ll: &LinkedLists) -> String {
             pb(n.steiner),
             false,
             //            pb(ll.freelist.contains(&n.idx)),
-            0, //,ll.iter_range(n.idx..n.idx).count(),
+            0, //,ll.iter(n.idx..n.idx).count(),
             n.z,
         ));
     }
@@ -1276,13 +1344,56 @@ mod tests {
         let (mut ll, _) = linked_list(&data, 0, data.len(), true);
         assert!(ll.nodes.len() == 5);
         assert!(ll.nodes[1].idx == 1);
-        //assert!(ll.nodes[1].i == 6/DIM);
-        //        assert!(ll.nodes[1].i == 3);
+        assert!(ll.nodes[1].i == 6 / DIM);
+        assert!(ll.nodes[1].i == 3);
         assert!(ll.nodes[1].x == 1.0);
         assert!(ll.nodes[1].y == 0.0);
         assert!(ll.nodes[1].next_idx == 2 && ll.nodes[1].prev_idx == 4);
         assert!(ll.nodes[4].next_idx == 1 && ll.nodes[4].prev_idx == 3);
         ll.remove_node(2);
+    }
+
+    #[test]
+    fn test_iter_mut() {
+        let data = vec![0.1, 0.25, 0.5, 1.0, 1.0, 1.0, 1.0, 0.0];
+        let (mut ll, _) = linked_list(&data, 0, data.len(), true);
+        ll.iter_mut(1..1).for_each(|p| {
+            p.x *= 2.;
+            p.y *= 2.
+        });
+        assert!(ll.nodes[4].x == 0.2);
+        assert!(ll.nodes[4].y == 0.5);
+        assert!(ll.nodes[3].x == 1.0);
+        assert!(ll.nodes[3].y == 2.0);
+        assert!(ll.nodes[2].x == 2.0);
+        assert!(ll.nodes[2].y == 2.0);
+        assert!(ll.nodes[1].x == 2.0);
+        assert!(ll.nodes[1].y == 0.0);
+        ll.iter_mut(1..3).for_each(|p| p.x *= 2.);
+        assert!(ll.nodes[4].x == 0.2);
+        assert!(ll.nodes[4].y == 0.5);
+        assert!(ll.nodes[3].x == 1.0);
+        assert!(ll.nodes[3].y == 2.0);
+        assert!(ll.nodes[2].x == 4.0);
+        assert!(ll.nodes[2].y == 2.0);
+        assert!(ll.nodes[1].x == 4.0);
+        assert!(ll.nodes[1].y == 0.0);
+    }
+
+
+    #[test]
+    fn test_iter_pairs() {
+        let data = vec![0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0];
+        let (ll, _) = linked_list(&data, 0, data.len(), true);
+		let mut v:Vec<Node>=Vec::new();
+		ll.iter(1..2).zip(ll.iter(2..3))
+//        ll.iter_pairs(1..2)
+			.for_each(|(p,n)| {
+			v.push(p.clone());
+			v.push(n.clone());
+        });
+		println!("{:?}",v);
+//		assert!(false);
     }
 
     #[test]
