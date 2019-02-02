@@ -135,18 +135,101 @@ The program also automatically 'corrects' the winding of the points
 during input so they are all counter-clockwise.
 
 Then, an "ear cutting" algorithm is applied. But not just any earcutting
-algorithm. As alluded to above, it creates a Z-curve in the space of the
-polygon, and sorts the points using that Z-curve.
+algorithm. 
 
-Basically, the linked list has links of 'next' and 'previous' node, 
-corresponding to the order given and processed by the main preparatory
-algorithm. But then each node also has a "next Z" and "prev Z" node,
-so that the list allows the program to quickly check whether points
-are Ears or not by looking "nearby" it first. 
+Normally, an ear-cutter algorithm works by finding a potential ear, 
+or a "candidate" ear, by looking at three consecutive points on the 
+polygon. Then, it must make sure there are no other points "inside"
+the ear.
 
-"Is Ear" is the key loop of any Earclip algorithm, it may 
-run this one function millions of times on a shape with a few thousand
-points.
+In order to do this, it must iterate through every point in the polygon,
+so if your polygon has 15,000 points then it must go through all of them
+looking to see if each one is inside the potential ear. Each ear check 
+takes a dozen or two calculations, typically using a test like the
+wedge product between each side of the ear, and the point to check - if
+the point is on the right-hand-side (Wedge is less than zero) of each
+side, it's inside the ear, and so the ear cannot be cut. The algorithm
+then moves on to the next potential ear.
+
+--------
+
+However. Z-order hashing allows that to be drastically cut down. How?
+Instead of running the "is in ear" code on each other point in the polygon,
+it is able to only check points 'nearby' the ear. This is accomplished
+in the following manne:
+
+Step 1: before earcut, each point of the polygon is given a 'z number' or
+a 'Morton code'. This Morton coding is a way to assign each square in a 
+2 dimensional grid a single number. Then, there is second set of 'next'
+and 'previous' links in the nodes of the polygon, nextz, and prevz,
+which store the z-number of each node. These links get sorted by sort_link
+so that in the end, you could iterate through the polygon by the z-order
+number of each point, rather than going through the standard point order
+as it was given to the program originally.
+
+Step 2: The clever bit is that if you want to search a 'range' of 2d space,
+in other words, a small rectangle or bounding box within the whole space,
+you can calculate the Morton code of the smallest point (minx, miny) 
+of the bounding box, and then also calculate the Morton code of the
+largest point (max, maxy) of the bounding box. Now you have two Morton
+code points. 
+
+One fascinating thing about Morton codes is that if you have two of them,
+and they are the points at the corners of a bounding box, then you can
+iterate through every x,y grid point inside the bounding box by iterating
+through the Morton codes between the smallest point and the biggest point.
+In other words, iterating through the one dimensional morton codes,
+from smallest to biggest, will 'hit' all of the 2 dimensional x,y points
+within that bounding box. 
+
+That is the nature of morton codes. Take
+a look at a 4 by 4 morton-coded square.
+
+    x--------------->
+    y    0  1  4  5
+    |    2  3  6  7
+    |    8  9 12 13
+   \|/  10 11 14 15
+
+Imagine the bounding boxes possible here, for example point 0,0 to
+3,3, has morton points 0,1,4,2,3,6,8,9,12. If you had iterated
+from 0 through 12, you would have hit every point in the bounding box,
+(and a few outside as well).
+
+Note that points outside this bounding box, will not have z coordinates
+in the range given!
+
+So, that is how it gets away without checking every point in the polygon
+to see if they are inside the ear. It draws a box around the ear
+
+    min
+     ____________
+     |       /\ |
+     |      /  \|
+     |     /  _-|
+     |____/_-___|
+                 max
+
+Then it looks through the points, but it looks through them by searching
+through the linked list of polygon nodes from the minimum Z-code
+to the maximum Z-code. 
+
+As you can imagine, if 14,000 of your points in your polygon are outside
+this box, and only 1000 are in the box, thats quite a bit less math 
+and calculation to be done than if you had to iterate through 15,000 points.
+ 
+------------
+
+If the earcutting fails, it also does some simple fixes, 
+
+- Filtering points - removing some collinear and equal points
+
+- Self intersections - removing points that only tie a tiny little knot
+  in the polygon without contributing to its overall shape (and also
+  make it not-simple)
+
+- Split bridge - actually split the polygon into two separate ones,
+  and try to earcut each.
 
 Data examples are included under tests/fixtures in json files.
 Visualization of test results is generated under viz/testoutput and can
