@@ -151,76 +151,61 @@ the point is on the right-hand-side (Wedge is less than zero) of each
 side, it's inside the ear, and so the ear cannot be cut. The algorithm
 then moves on to the next potential ear.
 
---------
+#### Z-order curve
 
-However. Z-order hashing allows that to be drastically cut down. How?
-Instead of running the "is in ear" code on each other point in the polygon,
-it is able to only check points 'nearby' the ear. This is accomplished
-in the following manne:
+Z-order hashing allows the number of 'is in ear' checks to be drastically 
+cut down. How? Instead of running the "is in ear" code on each other point
+in the polygon, it is able to only check points 'nearby' the ear. This is 
+accomplished in the following manner:
 
-Step 1: before earcut, each point of the polygon is given a 'z number' or
-a 'Morton code'. This Morton coding is a way to assign each square in a 
-2 dimensional grid a single number. Then, there is second set of 'next'
-and 'previous' links in the nodes of the polygon, nextz, and prevz,
-which store the z-number of each node. These links get sorted by sort_link
-so that in the end, you could iterate through the polygon by the z-order
-number of each point, rather than going through the standard point order
-as it was given to the program originally.
+Step 1: before earcut, each point of the polygon is given a coordinate
+on the z-order (Morton) curve through the space of the bounding box 
+of the polygon. This is a type of space-filling curve strategy that 
+has been explored in many geometry algorithms. Pleas see 
+https://en.wikipedia.org/wiki/Z-order_curve
 
-Step 2: The clever bit is that if you want to search a 'range' of 2d space,
-in other words, a small rectangle or bounding box within the whole space,
-you can calculate the Morton code of the smallest point (minx, miny) 
-of the bounding box, and then also calculate the Morton code of the
-largest point (max, maxy) of the bounding box. Now you have two Morton
-code points. 
+Step 2: The clever bit is that if you want to search within a limited
+rectangle inside the space filled by the Z-order curve, you can
+relatively easily figure out which points are inside that box by
+looking at their position on the z-order curve.. in other words
+their z index. The code stores the index as ".z" in each node of the
+linked list that represents a vertex of the polygon.
 
-One fascinating thing about Morton codes is that if you have two of them,
-and they are the points at the corners of a bounding box, then you can
-iterate through every x,y grid point inside the bounding box by iterating
-through the Morton codes between the smallest point and the biggest point.
-In other words, iterating through the one dimensional morton codes,
-from smallest to biggest, will 'hit' all of the 2 dimensional x,y points
-within that bounding box. 
+To be more specific, Z-order curves have a special thing about them,
+when you pick a limited rectangle inside, you can iterate along the
+z-curve from the "lowest" corner to the "highest" corner and be
+guaranteed to hit every 2d point inside that rectangle. 
 
-That is the nature of morton codes. Take
-a look at a 4 by 4 morton-coded square.
+For example, in a 4x4 morton square, there are 16 Morton codes.
 
-    x--------------->
-    y    0  1  4  5
-    |    2  3  6  7
-    |    8  9 12 13
-   \|/  10 11 14 15
+     x-----0--1--2--3-->
+    y|0    0  1  4  5
+     |1    2  3  6  7
+     |2    8  9 12 13
+     |3   10 11 14 15
+    \|/
 
-Imagine the bounding boxes possible here, for example point 0,0 to
-3,3, has morton points 0,1,4,2,3,6,8,9,12. If you had iterated
-from 0 through 12, you would have hit every point in the bounding box,
-(and a few outside as well).
+Going from z-code 0 to z-code 6, 0 1 2 3 4 5 6, takes us through 
+every 2 dimensional point between 0,0, where 0 lives, and 2,1, 
+where 6 lives. It also goes through 3,0 but nothing is perfect.
 
-Note that points outside this bounding box, will not have z coordinates
-in the range given!
+Let's say you pick 2,2 and 3,3. The z code at the lowest point
+is 12, and the highest is 15. So your z-iteration would be 
+12, 13, 14, 15, which covers the rectangle from 2,2 to 3,3.
 
 So, that is how it gets away without checking every point in the polygon
-to see if they are inside the ear. It draws a box around the ear
-
-    min
-     ____________
-     |       /\ |
-     |      /  \|
-     |     /  _-|
-     |____/_-___|
-                 max
-
-Then it looks through the points, but it looks through them by searching
-through the linked list of polygon nodes from the minimum Z-code
-to the maximum Z-code. 
+to see if they are inside the ear. It draws a rectangle around the ear,
+it finds the lowest and highest corner of that rectangle, and iterates
+through the z-curve to check every 2-d point that is 'near' the polygon
+ear.
 
 As you can imagine, if 14,000 of your points in your polygon are outside
 this box, and only 1000 are in the box, thats quite a bit less math 
 and calculation to be done than if you had to iterate through 15,000 points.
- 
-------------
 
-If the earcutting fails, it also does some simple fixes, 
+#### Additional massaging
+
+If the straightforward earcutting fails, it also does some simple fixes, 
 
 - Filtering points - removing some collinear and equal points
 
@@ -276,6 +261,11 @@ replaced by integers which index into a single Vector of Nodes stored in
 LinkedLists struct. It will still crash if you use an index out of bounds
 but the RUST_BACKTRACE=1 will tell you exactly where it happened.
 
+This might seem like a source of a slowdown - to bounds check every
+array access. However in practice the difference is barely measurable. 
+In fact, the code is built so it is relatively easy to switch to
+"unchecked_get" to test vector access without bounds checking. 
+
 ## Tests, Benchmarks
 
 To run tests:
@@ -316,6 +306,7 @@ lets us turn on optimization,
 
 The results for water tests are a nice sample. 
 
+```
 ____polygon_________________earcut.hpp_________libtessc++___
 | water          |          546 ops/s |          104 ops/s |
 | water2         |          615 ops/s |          590 ops/s |
@@ -325,6 +316,7 @@ ____polygon_________________earcut.hpp_________libtessc++___
 | water_huge     |           38 ops/s |           38 ops/s |
 | water_huge2    |           18 ops/s |           50 ops/s |
 ------------------------------------------------------------
+```
 
 Now, Rust bench measures in nanoseconds per iteration.
 C++ Earcut measures in iterations per second. To convert:
@@ -333,6 +325,7 @@ C++ Earcut measures in iterations per second. To convert:
 1,000,000,000 / 18 -> 55,555,555 nanoseconds/iteration
 So, converting the above:
 
+```
 ____polygon______earcut.hpp_-O2__libtessc++_-O2___Rust_earcutr_release
 | water      |  1,831,501 ns/i  |  9,615,384 ns/i |   1,860,385 ns/i |
 | water2     |  1,626,016 ns/i  |  1,694,915 ns/i |   1,477,185 ns/i |
