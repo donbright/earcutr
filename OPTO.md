@@ -11,7 +11,8 @@ turned off. Turning it on sometimes was 10x speedup or more.
 Through profiling and some optimization work, improvements were made
 to the Rust code so that it was comparable to optimized C++.
 
-Here are some highlights of that process:
+Here are some highlights of that process, along with the benchmarks of
+the water* shapes as the code slowly gets faster and faster. 
 
 
 ## C++ vs javascript
@@ -288,7 +289,7 @@ Now what does the ASM become?
   0.97 │       cvttsd2si %xmm5,%esi
 ```
 
-Wow... i got rid of a whole instruction inside a hot zone. What are the 
+Wow... i got rid of a whole mulsd instruction inside a hot zone. What are the 
 results? First, cargo test showed there were no test failures. Then, 
 cargo bench water:
 
@@ -461,6 +462,8 @@ For some shapes we are now within a percent of C++.
 
 * NULL Node
 
+In which we eliminate "is this a pointer to NULL" branch conditional in
+several pieces of linked list code.
 
 Instead of NULL being ffffffff.. what if it was 000000.. and what if...
 dereferencing a null pointer to a node was ... well.. perfectly valid?
@@ -468,8 +471,6 @@ What if there was, in fact, an object at address 0x00000000.. in our case
 we are using a vector, not RAM itself, so we can even put an object
 at 0x000000000. We can put a node there. We can call it the 'null node'.
 It is just like any other node, except that it is never part of a ring.
-
-* NULL Node
 
 Null is typically 'bad' in that it's encoded as a pointer to the memory
 address of 0x000000000. Computers don't like people poking around
@@ -494,14 +495,14 @@ remove_node()!
 
         let prz = node!(self, p).prevz_idx;
         let nxz = node!(self, p).nextz_idx;
-		if prz!=NULL {nodemut!(self, prz).nextz_idx = nxz;}
+	if prz!=NULL {nodemut!(self, prz).nextz_idx = nxz;}
         if prz!=NULL {nodemut!(self, nxz).prevz_idx = prz;}
 
 becomes
 
         let prz = node!(self, p).prevz_idx;
         let nxz = node!(self, p).nextz_idx;
-		nodemut!(self, prz).nextz_idx = nxz;
+	nodemut!(self, prz).nextz_idx = nxz;
         nodemut!(self, nxz).prevz_idx = prz;
 
 So if someone removes a node adjacent to the null node, the null node's
@@ -543,7 +544,10 @@ faster, as it only has one thing to check now, not two.
 
 * iterator optimization
 
-my old iterator, first attempt, did several conditional checks per loop,
+In which we change complicated for loops into chained iteration with
+filters, folds, and other functional language features.
+
+My old iterator, first attempt, did several conditional checks per loop,
 it was checking if it was done, if it had reached a null node, if it
 reached the end, if it has a 'single node' chain, etc etc.
 
@@ -633,6 +637,10 @@ really have optimization built in for arrays.
 
 * Bounding Box
 
+In which we compute the bounding box directly from the vector
+holding the node information, instead of iterating
+through the linked list.
+
 During initial linked list setup we have to create a bounding box, find
 the minimum x and y, and the maximum x and y, for all the points.
 We can do this by iterating through the original data, or by iterating
@@ -669,6 +677,9 @@ test bench_water_huge2          ... bench:  60,744,602 ns/iter (+/- 2,544,614)
 
 * Vector::with_capacity
 
+In which we pre-compute vector capacity, saving a few 'resize'/reallocate
+operations. 
+
 We store two big chunks of data in Vectors, the nodes and the resulting
 triangles. 
 
@@ -693,6 +704,7 @@ even mention it.
 But... we can also do it for our triangles. And we get a tiny little
 boost..  stranegly enough on the smaller shapes :
 
+```rust
 running 7 tests
 test bench_water                ... bench:   1,972,024 ns/iter (+/- 53,100)
 test bench_water2               ... bench:   1,483,504 ns/iter (+/- 11,269)
@@ -701,9 +713,12 @@ test bench_water3b              ... bench:       7,276 ns/iter (+/- 6)
 test bench_water4               ... bench:     489,625 ns/iter (+/- 2,844)
 test bench_water_huge           ... bench:  29,874,170 ns/iter (+/- 494,521)
 test bench_water_huge2          ... bench:  60,463,148 ns/iter (+/- 2,343,911)
+```
 
 
 * index_curve
+
+In which we try to speedup the space filling curve code, and fail. 
 
 tried to optimize with vector iteration, failed.
 
@@ -722,6 +737,8 @@ not much slower. and only shows on the huge shapes but still. not worth it.
 
 
 * find_hole_bridge into iterator... uhm wow
+
+In which we replace another for loop with iterators + functional code.
 
 This is a very complicated function that does something simple in idea,
 find a line between the left most point of a hole and the outer polygon
@@ -825,6 +842,8 @@ test bench_water_huge2          ... bench:  53,630,310 ns/iter (+/- 1,818,475)
 we are now within 50,000 ns of optimized C++ for bench_water or about 
 .05 ms, 5%. 600,000 ns (0.6ms) for water_huge and uhm. we beat C++ water 
 water_huge2 
+
+For the full, final benchmark comparison to C++, see README.MD
 
 * Thanks
 
