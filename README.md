@@ -298,33 +298,8 @@ this project uses an alternative, https://docs.rs/bencher/0.1.5/bencher/
 
 ### Speed of this Rust code vs earcut.hpp C++ code
 
-Mapbox has a C++ port of earcut.hpp, with a built in benchmarker, 
-measured in 'ops per second'. It also compares against a c++ version of 
-libtess. Editing the .hpp CMakeLists.txt file for the C compiler flags 
-lets us turn on optimization,
-
-    add_compile_options("-g" "-O2" ....
-
-The results for water tests are a nice sample. 
-
-```
-____polygon_________________earcut.hpp_________libtessc++___
-| water          |          546 ops/s |          104 ops/s |
-| water2         |          615 ops/s |          590 ops/s |
-| water3         |       18,818 ops/s |        6,499 ops/s |
-| water3b        |      239,026 ops/s |       49,645 ops/s |
-| water4         |        2,103 ops/s |        1,147 ops/s |
-| water_huge     |           38 ops/s |           38 ops/s |
-| water_huge2    |           18 ops/s |           50 ops/s |
-------------------------------------------------------------
-```
-
-Now, Rust bench measures in nanoseconds per iteration.
-C++ Earcut measures in iterations per second. To convert:
-18 ops in 1 second, is 
-18 iterations in 1,000,000,000 nanoseconds. 
-1,000,000,000 / 18 -> 55,555,555 nanoseconds/iteration
-So, converting the above:
+Following is a rough table based on testing of Earcut's C++ code, 
+Earcut's C++ test of LibTess' C++ code, and finally this Rust port of Earcut.
 
 ```
 ____polygon______earcut.hpp_-O2__libtessc++_-O2___Rust_earcutr_release
@@ -342,6 +317,23 @@ ns/i = nanoseconds per iteration
 This Rust code appears to be about 20-40% slower than the C++ version of 
 Earcut for tiny shapes. However with bigger shapes, it is either within
 the error margin, or maybe a bit faster.
+
+#### Method for comparing Earcut C++ / Earcutr Rust
+
+Mapbox has a C++ port of earcut.hpp, with a built in benchmarker, 
+measured in 'ops per second'. It also compares against a c++ version of 
+libtess. However by default it builds without optimization, which 
+hampers comparison. We can fix this.  Editing the .hpp CMakeLists.txt 
+file for the C compiler flags lets us turn on optimization,
+
+    add_compile_options("-g" "-O2" ....
+
+Now, Rust bench measures in nanoseconds per iteration.
+C++ Earcut measures in iterations per second. To convert:
+18 ops in 1 second, is 
+18 iterations in 1,000,000,000 nanoseconds. 
+1,000,000,000 / 18 -> 55,555,555 nanoseconds/iteration
+This way, a conversion can be done. 
 
 #### Profiling
 
