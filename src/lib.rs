@@ -268,8 +268,8 @@ fn eliminate_holes(
     queue.sort_by(compare_x);
 
     // process holes from left to right
-    for i in 0..queue.len() {
-        eliminate_hole(ll, queue[i].idx, outer_node);
+    for node in queue {
+        eliminate_hole(ll, node.idx, outer_node);
         let nextidx = next!(ll, outer_node).idx;
         outer_node = filter_points(ll, outer_node, nextidx);
     }
