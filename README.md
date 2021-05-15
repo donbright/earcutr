@@ -116,7 +116,7 @@ a 'hole'.
 After 'flattening', we end up with a single array:
 
     data [ 0,0,7,0,7,4,0,4,1,1,3,1,3,3  ]
-    holeindexes: [ 8 ]
+    holeindexes: [ 4 ]
     dimensions: 2
 
 The program will interpret this sequence of data into two separate "rings",
