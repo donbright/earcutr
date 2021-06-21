@@ -2,6 +2,10 @@
 name = "earcutr"
 version = "0.1.0"
 authors = ["don bright <hmbright@fastmail.com>"]
+edition = "2018"
+
+[dependencies]
+num-traits = "0.2"
 
 [dev-dependencies]
 serde = "1.0.80"
@@ -17,8 +21,3 @@ harness = false
 # Valgrind's Callgrind or Perf
 [profile.release] 
 debug = true
-
-# for profiling with CpuProfiler
-#[dependencies]
-#cpuprofiler = "0.0.3"
-

@@ -76,27 +76,15 @@ fn mkoutput(
         .truncate(true)
         .open(outfile)
         .unwrap();
-    try!(writeln!(&f, r###"testOutput["{}"]=[];"###, filename));
-    try!(writeln!(
-        &f,
-        r###"testOutput["{}"]["json"]={:?};"###,
-        filename, data
-    ));
-    try!(writeln!(
+    writeln!(&f, r###"testOutput["{}"]=[];"###, filename)?;
+    writeln!(&f, r###"testOutput["{}"]["json"]={:?};"###, filename, data)?;
+    writeln!(
         &f,
         r###"testOutput["{}"]["triangles"]={:?};"###,
         filename, tris
-    ));
-    try!(writeln!(
-        &f,
-        r###"testOutput["{}"]["pass"]={:?};"###,
-        filename, pass
-    ));
-    try!(writeln!(
-        &f,
-        r###"testOutput["{}"]["report"]={:?};"###,
-        filename, rpt
-    ));
+    )?;
+    writeln!(&f, r###"testOutput["{}"]["pass"]={:?};"###, filename, pass)?;
+    writeln!(&f, r###"testOutput["{}"]["report"]={:?};"###, filename, rpt)?;
     dlog!(4, "wrote results to {}", outfile);
     Ok(())
 }
@@ -130,8 +118,7 @@ fn area_test(filename: &str, expected_num_tris: usize, expected_deviation: f64) 
                         Some(parsed_data) => {
                             xdata = parsed_data;
                             let (data, holeidxs, dimensions) = earcutr::flatten(&xdata);
-                            triangles =
-                                earcutr::earcut(&data, &holeidxs, dimensions);
+                            triangles = earcutr::earcut(&data, &holeidxs, dimensions);
                             actual_num_tris = triangles.len() / 3;
                             actual_deviation =
                                 earcutr::deviation(&data, &holeidxs, dimensions, &triangles);
@@ -189,7 +176,7 @@ fn test_indices_3d() {
 
 #[test]
 fn test_empty() {
-    let indices = earcutr::earcut(&vec![], &vec![], 2);
+    let indices = earcutr::earcut::<f64>(&vec![], &vec![], 2);
     println!("{:?}", indices);
     assert!(indices.len() == 0);
 }
