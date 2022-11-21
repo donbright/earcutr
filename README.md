@@ -1,6 +1,9 @@
+
+[![Stand With Ukraine](https://raw.githubusercontent.com/vshymanskyy/StandWithUkraine/main/banner2-direct.svg)](https://stand-with-ukraine.pp.ua)
+
 # Earcutr
 
-This is a port of the MapBox company's Earcut computer code, which triangulates polygons. 
+This is a port of the MapBox company's Earcut computer code ( see https://github.com/mourner ) , which triangulates polygons. 
 Please see https://github.com/mapbox/earcut for more information about the original 
 javascript code. This port is to the Rust computer language, and is single-threaded.
 
