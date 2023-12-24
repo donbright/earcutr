@@ -55,7 +55,7 @@ impl Node {
 
 // Extension Trait for NodeIdx
 // this allows us to do stuff like i.next(ll).next(ll)
-// which helps to write a pointer-ish style of linked list code
+// which helps to write linked list code in a more concise, clear fashion
 pub trait NodeIndex {
     fn next(self, ll: &LinkedLists) -> NodeIdx;
     fn nextz(self, ll: &LinkedLists) -> NodeIdx;
@@ -70,7 +70,13 @@ pub trait NodeIndex {
     fn set_steiner(self, ll: &mut LinkedLists, v:bool);
 }
 
-// Extension Trait implementation
+// Extension Trait implementation. NodeIdx is typically just usize
+// so basically we are extending the integers to allow looking up nodes in a linked list
+// by calling methods on integers. for example
+//
+//      i is an NodeIdx    ll is a LinkedLists
+//      i.next(ll).next(ll)  // this gets the index of the node after the node after i
+//
 impl NodeIndex for NodeIdx {
     fn next(self, ll: &LinkedLists) -> NodeIdx {
         ll.nodes[self].next_idx
@@ -114,7 +120,6 @@ pub struct LinkedLists {
     pub miny: f64,
     pub maxx: f64,
     pub maxy: f64,
-    pub usehash: bool,
 }
 
 
@@ -166,7 +171,6 @@ impl LinkedLists {
             miny: std::f64::MAX,
             maxx: std::f64::MIN,
             maxy: std::f64::MIN,
-            usehash: true,
         };
         // ll.nodes[0] is the NULL node. For example usage, see remove_node()
         ll.nodes.push(Node {

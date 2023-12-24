@@ -37,12 +37,10 @@ pub fn linked_list_add_contour(
                 contour_minx = data[i];
                 leftmost_idx = lastidx
             };
-            if ll.usehash {
                 ll.miny = f64::min(data[i + 1], ll.miny);
                 ll.maxx = f64::max(data[i], ll.maxx);
                 ll.maxy = f64::max(data[i + 1], ll.maxy);
-            }
-        }
+          }
     } else {
         for i in (start..=(end - DIM)).rev().step_by(DIM) {
             lastidx = ll.insert_node(i / DIM, data[i], data[i + 1], lastidx);
@@ -50,12 +48,10 @@ pub fn linked_list_add_contour(
                 contour_minx = data[i];
                 leftmost_idx = lastidx
             };
-            if ll.usehash {
                 ll.miny = f64::min(data[i + 1], ll.miny);
                 ll.maxx = f64::max(data[i], ll.maxx);
                 ll.maxy = f64::max(data[i + 1], ll.maxy);
-            }
-        }
+         }
     }
 
     ll.minx = f64::min(contour_minx, ll.minx);
@@ -157,50 +153,6 @@ fn earcut_linked_hashed(
     }
 }
 
-
-// main ear slicing loop which triangulates a polygon (given as a linked
-// list)
-fn earcut_linked_unhashed(
-    ll: &mut LinkedLists,
-    mut ear_idx: NodeIdx,
-    triangles: &mut Vec<usize>,
-    pass: usize,
-) {
-    // iterate through ears, slicing them one by one
-    let mut stop_idx = ear_idx;
-    let mut prev_idx = 0;
-    let mut next_idx = ear_idx.next(ll);
-    while stop_idx != next_idx {
-        prev_idx = ear_idx.prev(ll);
-        next_idx = ear_idx.next(ll);
-        if is_ear(ll, prev_idx, ear_idx, next_idx) {
-            triangles.push(prev_idx.node(ll).i);
-            triangles.push(ear_idx.node(ll).i);
-            triangles.push(next_idx.node(ll).i);
-            ll.remove_node(ear_idx);
-            // skipping the next vertex leads to less sliver triangles
-            ear_idx = next_idx.next(ll);
-            stop_idx = ear_idx;
-        } else {
-            ear_idx = next_idx;
-        }
-    }
-
-    if prev_idx == next_idx {
-        return;
-    };
-    // if we looped through the whole remaining polygon and can't
-    // find any more ears
-    if pass == 0 {
-        let tmp = filter_points(ll, next_idx, NULL);
-        earcut_linked_unhashed(ll, tmp, triangles, 1);
-    } else if pass == 1 {
-        ear_idx = cure_local_intersections(ll, next_idx, triangles);
-        earcut_linked_unhashed(ll, ear_idx, triangles, 2);
-    } else if pass == 2 {
-        split_earcut(ll, next_idx, triangles);
-    }
-}
 
 
 // interlink polygon nodes in z-order
@@ -436,9 +388,6 @@ fn linked_list(
     clockwise: bool,
 ) -> (LinkedLists, NodeIdx) {
     let mut ll: LinkedLists = LinkedLists::new(data.len() / DIM);
-    if data.len() < 80 {
-        ll.usehash = false
-    };
     let (last_idx, _) = linked_list_add_contour(&mut ll, data, start, end, clockwise);
     (ll, last_idx)
 }
@@ -488,7 +437,6 @@ pub fn earcut(data: &Vec<f64>, hole_indices: &Vec<usize>, dims: usize) -> Vec<us
 
     outer_node = eliminate_holes(&mut ll, data, hole_indices, outer_node);
 
-    if ll.usehash {
         ll.invsize = calc_invsize(ll.minx, ll.miny, ll.maxx, ll.maxy);
 
         // translate all points so min is 0,0. prevents subtraction inside
@@ -500,9 +448,6 @@ pub fn earcut(data: &Vec<f64>, hole_indices: &Vec<usize>, dims: usize) -> Vec<us
         ll.nodes.iter_mut().for_each(|n| n.x -= mx);
         ll.nodes.iter_mut().for_each(|n| n.y -= my);
 	    earcut_linked_hashed(&mut ll, outer_node, &mut triangles, 0);
-    } else {
-	    earcut_linked_unhashed(&mut ll, outer_node, &mut triangles, 0);
-	}
 
 
     triangles
@@ -1139,12 +1084,6 @@ mod tests {
         let (mut tris, pass) = (Vec::new(), 0);
         earcut_linked_hashed(&mut ll, 1, &mut tris, pass);
         assert!(tris.len() == 6);
-
-        let m = vec![0.0, 0.0, 0.5, 0.5, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0];
-        let (mut ll, _) = linked_list(&m, 0, m.len(), true);
-        let (mut tris, pass) = (Vec::new(), 0);
-        earcut_linked_unhashed(&mut ll, 1, &mut tris, pass);
-        assert!(tris.len() == 9);
 
         let m = vec![0.0, 0.0, 0.5, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0];
         let (mut ll, _) = linked_list(&m, 0, m.len(), true);
