@@ -8,238 +8,65 @@ static DEBUG: usize = 0; // dlogs get optimized away at 0
 type NodeIdx = usize;
 type VertIdx = usize;
 
-#[derive(Clone, Debug)]
-struct Node {
-    i: VertIdx,         // vertex index in flat one-d array of 64bit float coords
-    x: f64,             // vertex x coordinate
-    y: f64,             // vertex y coordinate
-    prev_idx: NodeIdx,  // previous vertex node in a polygon ring
-    next_idx: NodeIdx,  // next vertex node in a polygon ring
-    z: i32,             // z-order curve value
-    prevz_idx: NodeIdx, // previous node in z-order
-    nextz_idx: NodeIdx, // next node in z-order
-    steiner: bool,      // indicates whether this is a steiner point
-    idx: NodeIdx,       // index within LinkedLists vector that holds all nodes
-}
-
-impl Node {
-    fn new(i: VertIdx, x: f64, y: f64, idx: NodeIdx) -> Node {
-        Node {
-            i: i,
-            x: x,
-            y: y,
-            prev_idx: NULL,
-            next_idx: NULL,
-            z: 0,
-            nextz_idx: NULL,
-            prevz_idx: NULL,
-            steiner: false,
-            idx: idx,
-        }
-    }
-}
-
-pub struct LinkedLists {
-    nodes: Vec<Node>,
-    invsize: f64,
-    minx: f64,
-    miny: f64,
-    maxx: f64,
-    maxy: f64,
-    usehash: bool,
-}
-
-macro_rules! dlog {
-	($loglevel:expr, $($s:expr),*) => (
-		if DEBUG>=$loglevel { print!("{}:",$loglevel); println!($($s),+); }
-	)
-}
-
-// macro design: built so we can easily swap unchecked for checked,
-// to test speed. and because unsafe get_ funcs have different meaning
-// than bracket operator (indexing operator) nodes[index]
-macro_rules! noderef {
-    ($ll:expr,$idx:expr) => {
-        unsafe{$ll.nodes.get_unchecked($idx)}
-        //&$ll.nodes[$idx]
-    };
-}
-macro_rules! node {
-    ($ll:expr,$idx:expr) => {
-        unsafe{$ll.nodes.get_unchecked($idx)}
-        //$ll.nodes[$idx]
-    };
-}
-macro_rules! nodemut {
-    ($ll:expr,$idx:expr) => {
-        unsafe{$ll.nodes.get_unchecked_mut($idx)}
-        //$ll.nodes.get_mut($idx).unwrap()
-    };
-}
-// Note: none of the following macros work for Left-Hand-Side of assignment.
-macro_rules! next {
-    ($ll:expr,$idx:expr) => {
-        unsafe{$ll.nodes.get_unchecked($ll.nodes.get_unchecked($idx).next_idx)}
-        //$ll.nodes[$ll.nodes[$idx].next_idx]
-    };
-}
-macro_rules! nextref {
-    ($ll:expr,$idx:expr) => {
-        unsafe{&$ll.nodes.get_unchecked($ll.nodes.get_unchecked($idx).next_idx)}
-        //&$ll.nodes[$ll.nodes[$idx].next_idx]
-    };
-}
-macro_rules! prev {
-    ($ll:expr,$idx:expr) => {
-        unsafe{$ll.nodes.get_unchecked($ll.nodes.get_unchecked($idx).prev_idx)}
-        //$ll.nodes[$ll.nodes[$idx].prev_idx]
-    };
-}
-macro_rules! prevref {
-    ($ll:expr,$idx:expr) => {
-        unsafe{&$ll.nodes.get_unchecked($ll.nodes.get_unchecked($idx).prev_idx)}
-        //&$ll.nodes[$ll.nodes[$idx].prev_idx]
-    };
-}
-macro_rules! prevz {
-    ($ll:expr,$idx:expr) => {
-        &$ll.nodes[$ll.nodes[$idx].prevz_idx]
-        /*unsafe {
-            $ll.nodes
-                .get_unchecked($ll.nodes.get_unchecked($idx).prevz_idx)
-        }*/
-    };
-}
-
-impl LinkedLists {
-    fn iter(&self, r: std::ops::Range<NodeIdx>) -> NodeIterator {
-        return NodeIterator::new(self, r.start, r.end);
-    }
-    fn iter_pairs(&self, r: std::ops::Range<NodeIdx>) -> NodePairIterator {
-        return NodePairIterator::new(self, r.start, r.end);
-    }
-    fn insert_node(&mut self, i: VertIdx, x: f64, y: f64, last: NodeIdx) -> NodeIdx {
-        let mut p = Node::new(i, x, y, self.nodes.len());
-        if last == NULL {
-            p.next_idx = p.idx;
-            p.prev_idx = p.idx;
-        } else {
-            p.next_idx = noderef!(self, last).next_idx;
-            p.prev_idx = last;
-            let lastnextidx = noderef!(self, last).next_idx;
-            nodemut!(self, lastnextidx).prev_idx = p.idx;
-            nodemut!(self, last).next_idx = p.idx;
-        };
-        let result = p.idx;
-        self.nodes.push(p);
-        return result;
-    }
-    fn remove_node(&mut self, p_idx: NodeIdx) {
-        let pi = noderef!(self, p_idx).prev_idx;
-        let ni = noderef!(self, p_idx).next_idx;
-        let pz = noderef!(self, p_idx).prevz_idx;
-        let nz = noderef!(self, p_idx).nextz_idx;
-        nodemut!(self, pi).next_idx = ni;
-        nodemut!(self, ni).prev_idx = pi;
-        nodemut!(self, pz).nextz_idx = nz;
-        nodemut!(self, nz).prevz_idx = pz;
-    }
-    fn new(size_hint: usize) -> LinkedLists {
-        let mut ll = LinkedLists {
-            nodes: Vec::with_capacity(size_hint),
-            invsize: 0.0,
-            minx: std::f64::MAX,
-            miny: std::f64::MAX,
-            maxx: std::f64::MIN,
-            maxy: std::f64::MIN,
-            usehash: true,
-        };
-        // ll.nodes[0] is the NULL node. For example usage, see remove_node()
-        ll.nodes.push(Node {
-            i: 0,
-            x: 0.0,
-            y: 0.0,
-            prev_idx: 0,
-            next_idx: 0,
-            z: 0,
-            nextz_idx: 0,
-            prevz_idx: 0,
-            steiner: false,
-            idx: 0,
-        });
-        ll
-    }
-}
-
-struct NodeIterator<'a> {
-    cur: NodeIdx,
-    end: NodeIdx,
-    ll: &'a LinkedLists,
-    pending_result: Option<&'a Node>,
-}
-
-impl<'a> NodeIterator<'a> {
-    fn new(ll: &LinkedLists, start: NodeIdx, end: NodeIdx) -> NodeIterator {
-        NodeIterator {
-            pending_result: Some(noderef!(ll, start)),
-            cur: start,
-            end: end,
-            ll,
-        }
-    }
-}
-
-impl<'a> Iterator for NodeIterator<'a> {
-    type Item = &'a Node;
-    fn next(&mut self) -> Option<Self::Item> {
-        self.cur = noderef!(self.ll, self.cur).next_idx;
-        let cur_result = self.pending_result;
-        if self.cur == self.end {
-            // only one branch, saves time
-            self.pending_result = None;
-        } else {
-            self.pending_result = Some(noderef!(self.ll, self.cur));
-        }
-        cur_result
-    }
-}
-
-struct NodePairIterator<'a> {
-    cur: NodeIdx,
-    end: NodeIdx,
-    ll: &'a LinkedLists,
-    pending_result: Option<(&'a Node, &'a Node)>,
-}
-
-impl<'a> NodePairIterator<'a> {
-    fn new(ll: &LinkedLists, start: NodeIdx, end: NodeIdx) -> NodePairIterator {
-        NodePairIterator {
-            pending_result: Some((noderef!(ll, start), nextref!(ll, start))),
-            cur: start,
-            end: end,
-            ll,
-        }
-    }
-}
-
-impl<'a> Iterator for NodePairIterator<'a> {
-    type Item = (&'a Node, &'a Node);
-    fn next(&mut self) -> Option<Self::Item> {
-        self.cur = node!(self.ll, self.cur).next_idx;
-        let cur_result = self.pending_result;
-        if self.cur == self.end {
-            // only one branch, saves time
-            self.pending_result = None;
-        } else {
-            self.pending_result = Some((noderef!(self.ll, self.cur), nextref!(self.ll, self.cur)))
-        }
-        cur_result
-    }
-}
+mod node;
+use node::*;
 
 fn compare_x(a: &Node, b: &Node) -> std::cmp::Ordering {
     a.x.partial_cmp(&b.x).unwrap_or(std::cmp::Ordering::Equal)
 }
+
+// add new nodes to an existing linked list.
+pub fn linked_list_add_contour(
+    ll: &mut LinkedLists,
+    data: &Vec<f64>,
+    start: usize,
+    end: usize,
+    clockwise: bool,
+) -> (NodeIdx, NodeIdx) {
+    if start > data.len() || end > data.len() || data.len() == 0 {
+        return (NULL, NULL);
+    }
+    let mut lastidx = NULL;
+    let mut leftmost_idx = NULL;
+    let mut contour_minx = std::f64::MAX;
+
+    if clockwise == (signed_area(&data, start, end) > 0.0) {
+        for i in (start..end).step_by(DIM) {
+            lastidx = ll.insert_node(i / DIM, data[i], data[i + 1], lastidx);
+            if contour_minx > data[i] {
+                contour_minx = data[i];
+                leftmost_idx = lastidx
+            };
+            if ll.usehash {
+                ll.miny = f64::min(data[i + 1], ll.miny);
+                ll.maxx = f64::max(data[i], ll.maxx);
+                ll.maxy = f64::max(data[i + 1], ll.maxy);
+            }
+        }
+    } else {
+        for i in (start..=(end - DIM)).rev().step_by(DIM) {
+            lastidx = ll.insert_node(i / DIM, data[i], data[i + 1], lastidx);
+            if contour_minx > data[i] {
+                contour_minx = data[i];
+                leftmost_idx = lastidx
+            };
+            if ll.usehash {
+                ll.miny = f64::min(data[i + 1], ll.miny);
+                ll.maxx = f64::max(data[i], ll.maxx);
+                ll.maxy = f64::max(data[i + 1], ll.maxy);
+            }
+        }
+    }
+
+    ll.minx = f64::min(contour_minx, ll.minx);
+
+    if equal_coords(noderef!(ll, lastidx), nextref!(ll, lastidx)) {
+        ll.remove_node(lastidx);
+        lastidx = noderef!(ll, lastidx).next_idx;
+    }
+    return (lastidx, leftmost_idx);
+}
+
 
 // link every hole into the outer loop, producing a single-ring polygon
 // without holes
@@ -249,7 +76,6 @@ fn eliminate_holes(
     hole_indices: &Vec<usize>,
     inouter_node: NodeIdx,
 ) -> NodeIdx {
-    let mut outer_node = inouter_node;
     let mut queue: Vec<Node> = Vec::new();
     for i in 0..hole_indices.len() {
         let start = hole_indices[i] * DIM;
@@ -267,13 +93,10 @@ fn eliminate_holes(
 
     queue.sort_by(compare_x);
 
-    // process holes from left to right
-    for i in 0..queue.len() {
-        eliminate_hole(ll, queue[i].idx, outer_node);
-        let nextidx = next!(ll, outer_node).idx;
-        outer_node = filter_points(ll, outer_node, nextidx);
-    }
-    outer_node
+    queue.iter().fold( inouter_node, |outer_node, qnode| {
+        eliminate_hole(ll, qnode.idx, outer_node);
+        filter_points(ll, outer_node, outer_node.next(ll)) })
+    
 } // elim holes
 
 // minx, miny and invsize are later used to transform coords
@@ -301,7 +124,7 @@ fn earcut_linked_hashed(
     // iterate through ears, slicing them one by one
     let mut stop_idx = ear_idx;
     let mut prev_idx = 0;
-    let mut next_idx = node!(ll, ear_idx).next_idx;
+    let mut next_idx = ear_idx.next(ll);
     while stop_idx != next_idx {
         prev_idx = node!(ll, ear_idx).prev_idx;
         next_idx = node!(ll, ear_idx).next_idx;
@@ -426,7 +249,7 @@ fn sort_linked(ll: &mut LinkedLists, mut list: NodeIdx) {
             psize = 0;
             while q != NULL && psize < insize {
                 psize += 1;
-                q = noderef!(ll, q).nextz_idx;
+                q = noderef!(ll, q).nextz_idx; // q = q.nextz(ll);
             }
             qsize = insize;
 
@@ -434,28 +257,28 @@ fn sort_linked(ll: &mut LinkedLists, mut list: NodeIdx) {
                 if psize > 0 && (qsize == 0 || q == NULL || noderef!(ll, p).z <= noderef!(ll, q).z)
                 {
                     e = p;
-                    p = noderef!(ll, p).nextz_idx;
+                    p = noderef!(ll, p).nextz_idx; // p = p.nextz(ll);
                     psize -= 1;
                 } else {
                     e = q;
-                    q = noderef!(ll, q).nextz_idx;
+                    q = noderef!(ll, q).nextz_idx; // q = q.nextz(ll);
                     qsize -= 1;
                 }
 
                 if tail != NULL {
-                    nodemut!(ll, tail).nextz_idx = e;
+                    nodemut!(ll, tail).nextz_idx = e; // tail.set_nextz(ll,e);
                 } else {
                     list = e;
                 }
 
-                nodemut!(ll, e).prevz_idx = tail;
+                nodemut!(ll, e).prevz_idx = tail; // e.set_prevz(ll,tail);
                 tail = e;
             }
 
             p = q;
         }
 
-        nodemut!(ll, tail).nextz_idx = NULL;
+        nodemut!(ll, tail).nextz_idx = NULL; // tail.set_nextz(NULL);
         insize *= 2;
         if nummerges <= 1 {
             break;
@@ -590,7 +413,7 @@ fn filter_points(ll: &mut LinkedLists, start: NodeIdx, mut end: NodeIdx) -> Node
     loop {
         again = false;
         if !node!(ll, p).steiner
-            && (equals(noderef!(ll, p), nextref!(ll, p))
+            && (equal_coords(noderef!(ll, p), nextref!(ll, p))
                 || area(prevref!(ll, p), noderef!(ll, p), nextref!(ll, p)) == 0.0)
         {
             ll.remove_node(p);
@@ -625,58 +448,6 @@ fn linked_list(
     (ll, last_idx)
 }
 
-// add new nodes to an existing linked list.
-fn linked_list_add_contour(
-    ll: &mut LinkedLists,
-    data: &Vec<f64>,
-    start: usize,
-    end: usize,
-    clockwise: bool,
-) -> (NodeIdx, NodeIdx) {
-    if start > data.len() || end > data.len() || data.len() == 0 {
-        return (NULL, NULL);
-    }
-    let mut lastidx = NULL;
-    let mut leftmost_idx = NULL;
-    let mut contour_minx = std::f64::MAX;
-
-    if clockwise == (signed_area(&data, start, end) > 0.0) {
-        for i in (start..end).step_by(DIM) {
-            lastidx = ll.insert_node(i / DIM, data[i], data[i + 1], lastidx);
-            if contour_minx > data[i] {
-                contour_minx = data[i];
-                leftmost_idx = lastidx
-            };
-            if ll.usehash {
-                ll.miny = f64::min(data[i + 1], ll.miny);
-                ll.maxx = f64::max(data[i], ll.maxx);
-                ll.maxy = f64::max(data[i + 1], ll.maxy);
-            }
-        }
-    } else {
-        for i in (start..=(end - DIM)).rev().step_by(DIM) {
-            lastidx = ll.insert_node(i / DIM, data[i], data[i + 1], lastidx);
-            if contour_minx > data[i] {
-                contour_minx = data[i];
-                leftmost_idx = lastidx
-            };
-            if ll.usehash {
-                ll.miny = f64::min(data[i + 1], ll.miny);
-                ll.maxx = f64::max(data[i], ll.maxx);
-                ll.maxy = f64::max(data[i + 1], ll.maxy);
-            }
-        }
-    }
-
-    ll.minx = f64::min(contour_minx, ll.minx);
-
-    if equals(noderef!(ll, lastidx), nextref!(ll, lastidx)) {
-        ll.remove_node(lastidx);
-        lastidx = noderef!(ll, lastidx).next_idx;
-    }
-    return (lastidx, leftmost_idx);
-}
-
 // z-order of a point given coords and inverse of the longer side of
 // data bbox
 #[inline(always)]
@@ -696,11 +467,16 @@ fn zorder(xf: f64, yf: f64, invsize: f64) -> i32 {
     ((xy >> 32) | (xy << 1)) as i32
 }
 
+
+fn wedge(a:Node,b:Node) -> f64 {
+	a.x*b.y-b.x*a.y
+}
+
 // check if a point lies within a convex triangle
 fn point_in_triangle(a: &Node, b: &Node, c: &Node, p: &Node) -> bool {
-    ((c.x - p.x) * (a.y - p.y) - (a.x - p.x) * (c.y - p.y) >= 0.0)
-        && ((a.x - p.x) * (b.y - p.y) - (b.x - p.x) * (a.y - p.y) >= 0.0)
-        && ((b.x - p.x) * (c.y - p.y) - (c.x - p.x) * (b.y - p.y) >= 0.0)
+	wedge(c-p,a-p)>=0.0 && 
+	wedge(a-p,b-p)>=0.0 && 
+	wedge(b-p,c-p)>=0.0
 }
 
 pub fn earcut(data: &Vec<f64>, hole_indices: &Vec<usize>, dims: usize) -> Vec<usize> {
@@ -742,11 +518,6 @@ fn area(p: &Node, q: &Node, r: &Node) -> f64 {
     (q.y - p.y) * (r.x - q.x) - (q.x - p.x) * (r.y - q.y)
 }
 
-// check if two points are equal
-fn equals(p1: &Node, p2: &Node) -> bool {
-    p1.x == p2.x && p1.y == p2.y
-}
-
 /* go through all polygon nodes and cure small local self-intersections
 what is a small local self-intersection? well, lets say you have four points
 a,b,c,d. now imagine you have three line segments, a-b, b-c, and c-d. now
@@ -783,7 +554,7 @@ fn cure_local_intersections(
         let a = node!(ll, p).prev_idx;
         let b = next!(ll, p).next_idx;
 
-        if !equals(noderef!(ll, a), noderef!(ll, b))
+        if !equal_coords(noderef!(ll, a), noderef!(ll, b))
             && pseudo_intersects(
                 noderef!(ll, a),
                 noderef!(ll, p),
@@ -966,7 +737,7 @@ detection for endpoint detection.
 */
 
 fn pseudo_intersects(p1: &Node, q1: &Node, p2: &Node, q2: &Node) -> bool {
-    if (equals(p1, p2) && equals(q1, q2)) || (equals(p1, q2) && equals(q1, p2)) {
+    if (equal_coords(p1, p2) && equal_coords(q1, q2)) || (equal_coords(p1, q2) && equal_coords(q1, p2)) {
         return true;
     }
     return (area(p1, q1, p2) > 0.0) != (area(p1, q1, q2) > 0.0)
@@ -1089,18 +860,25 @@ fn split_bridge_polygon(ll: &mut LinkedLists, a: NodeIdx, b: NodeIdx) -> NodeIdx
     let an = noderef!(ll, a).next_idx;
     let bp = noderef!(ll, b).prev_idx;
 
+    //a.set_next(ll, b);
+    //b.set_prev(ll, a); 
     nodemut!(ll, a).next_idx = b;
     nodemut!(ll, b).prev_idx = a;
 
     c.next_idx = an;
+    //c.set_next(ll,a.get_next(ll));
     nodemut!(ll, an).prev_idx = cidx;
-
+    //c.next_idx.set_prev(ll, cidx);
+    
     d.next_idx = cidx;
     c.prev_idx = didx;
-
+    //d.set_next(ll,cidx);
+    //c.set_prev(ll,didx);
+    
     nodemut!(ll, bp).next_idx = didx;
     d.prev_idx = bp;
-
+    //bp.set_next(ll,didx);
+    
     ll.nodes.push(c);
     ll.nodes.push(d);
     return didx;
@@ -1232,175 +1010,11 @@ fn cycle_dump(ll: &LinkedLists, p: NodeIdx) -> String {
     }
 }
 
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    fn cycles_report(ll: &LinkedLists) -> String {
-        if ll.nodes.len() == 1 {
-            return format!("[]");
-        }
-        let mut markv: Vec<usize> = Vec::new();
-        markv.resize(ll.nodes.len(), NULL);
-        let mut cycler;;
-        for i in 0..markv.len() {
-            //            if ll.freelist.contains(&i) {
-            if true {
-                markv[i] = NULL;
-            } else if markv[i] == NULL {
-                cycler = i;
-                let mut p = i;
-                let end = noderef!(ll, p).prev_idx;
-                markv[p] = cycler;
-                let mut count = 0;
-                loop {
-                    p = noderef!(ll, p).next_idx;
-                    markv[p] = cycler;
-                    count += 1;
-                    if p == end || count > ll.nodes.len() {
-                        break;
-                    }
-                } // loop
-            } // if markvi == 0
-        } //for markv
-        format!("cycles report:\n{:?}", markv)
-    }
-
-    fn dump_cycle(ll: &LinkedLists, start: usize) -> String {
-        let mut s = format!("LL, #nodes: {}", ll.nodes.len());
-        //        s.push_str(&format!(" #used: {}\n", ll.nodes.len() - ll.freelist.len()));
-        s.push_str(&format!(" #used: {}\n", ll.nodes.len()));
-        s.push_str(&format!(
-            " {:>3} {:>3} {:>3} {:>4} {:>4} {:>8.3} {:>8.3} {:>4} {:>4} {:>2} {:>2} {:>2}\n",
-            "#", "vi", "i", "p", "n", "x", "y", "pz", "nz", "st", "fr", "cyl"
-        ));
-        let mut startidx: usize = 0;
-        for n in &ll.nodes {
-            if n.i == start {
-                startidx = n.idx;
-            };
-        }
-        let endidx = startidx;
-        let mut idx = startidx;
-        let mut count = 0;
-        let mut state; // = 0i32;
-        loop {
-            let n = noderef!(ll, idx).clone();
-            state = 0; //horsh( state, n.i  as i32);
-            s.push_str(&format!(
-                " {:>3} {:>3} {:>3} {:>4} {:>4} {:>8.3} {:>8.3} {:>4} {:>4} {:>2} {:>2} {:>2}\n",
-                count,
-                n.idx,
-                n.i,
-                prev!(ll, n.idx).i,
-                next!(ll, n.idx).i,
-                n.x,
-                n.y,
-                pn(n.prevz_idx),
-                pn(n.nextz_idx),
-                pb(n.steiner),
-                //                pb(ll.freelist.contains(&n.idx)),
-                false,
-                cycle_len(&ll, n.idx),
-            ));
-            idx = next!(ll, idx).idx;
-            count += 1;
-            if idx == endidx || count > ll.nodes.len() {
-                break;
-            }
-        }
-        s.push_str(&format!("dump end, horshcount:{} horsh:{}", count, state));
-        return s;
-    }
-
-    fn cycle_len(ll: &LinkedLists, p: NodeIdx) -> usize {
-        if p >= ll.nodes.len() {
-            return 0;
-        }
-        let end = noderef!(ll, p).prev_idx;
-        let mut i = p;
-        let mut count = 1;
-        loop {
-            i = noderef!(ll, i).next_idx;
-            count += 1;
-            if i == end {
-                break count;
-            }
-            if count > ll.nodes.len() {
-                break count;
-            }
-        }
-    }
-
-    // https://www.cs.hmc.edu/~geoff/classes/hmc.cs070.200101/homework10/hashfuncs.$
-    // https://stackoverflow.com/questions/1908492/unsigned-integer-in-javascript
-    fn horsh(mut h: u32, n: u32) -> u32 {
-        let highorder = h & 0xf8000000; // extract high-order 5 bits from h
-                                        // 0xf8000000 is the hexadecimal representat$
-                                        //   for the 32-bit number with the first fi$
-                                        //   bits = 1 and the other bits = 0
-        h = h << 5; // shift h left by 5 bits
-        h = h ^ (highorder >> 27); // move the highorder 5 bits to the low-ord$
-                                   //   end and XOR into h
-        h = h ^ n; // XOR h and ki
-        return h;
-    }
-
-    // find the node with 'i' of starti, horsh it
-    fn horsh_ll(ll: &LinkedLists, starti: VertIdx) -> String {
-        let mut s = format!("LL horsh: ");
-        let mut startidx: usize = 0;
-        for n in &ll.nodes {
-            if n.i == starti {
-                startidx = n.idx;
-            };
-        }
-        let endidx = startidx;
-        let mut idx = startidx;
-        let mut count = 0;
-        let mut state = 0u32;
-        loop {
-            let n = noderef!(ll, idx).clone();
-            state = horsh(state, n.i as u32);
-            idx = next!(ll, idx).idx;
-            count += 1;
-            if idx == endidx || count > ll.nodes.len() {
-                break;
-            }
-        }
-        s.push_str(&format!(" count:{} horsh: {}", count, state));
-        return s;
-    }
-
-    #[test]
-    fn test_linked_list() {
-        let data = vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.0];
-        let (mut ll, _) = linked_list(&data, 0, data.len(), true);
-        assert!(ll.nodes.len() == 5);
-        assert!(ll.nodes[1].idx == 1);
-        assert!(ll.nodes[1].i == 6 / DIM);
-        assert!(ll.nodes[1].i == 3);
-        assert!(ll.nodes[1].x == 1.0);
-        assert!(ll.nodes[1].y == 0.0);
-        assert!(ll.nodes[1].next_idx == 2 && ll.nodes[1].prev_idx == 4);
-        assert!(ll.nodes[4].next_idx == 1 && ll.nodes[4].prev_idx == 3);
-        ll.remove_node(2);
-    }
-
-    #[test]
-    fn test_iter_pairs() {
-        let data = vec![0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0];
-        let (ll, _) = linked_list(&data, 0, data.len(), true);
-        let mut v: Vec<Node> = Vec::new();
-        //        ll.iter(1..2)
-        //.zip(ll.iter(2..3))
-        ll.iter_pairs(1..2).for_each(|(p, n)| {
-            v.push(p.clone());
-            v.push(n.clone());
-        });
-        println!("{:?}", v);
-        //		assert!(false);
-    }
 
     #[test]
     fn test_point_in_triangle() {
@@ -1449,14 +1063,14 @@ mod tests {
     }
 
     #[test]
-    fn test_equals() {
+    fn test_equal_coords() {
         let body = vec![0.0, 1.0, 0.0, 1.0];
         let (ll, _) = linked_list(&body, 0, body.len(), true);
-        assert!(equals(&ll.nodes[1], &ll.nodes[2]));
+        assert!(equal_coords(&ll.nodes[1], &ll.nodes[2]));
 
         let body = vec![2.0, 1.0, 0.0, 1.0];
         let (ll, _) = linked_list(&body, 0, body.len(), true);
-        assert!(!equals(&ll.nodes[1], &ll.nodes[2]));
+        assert!(!equal_coords(&ll.nodes[1], &ll.nodes[2]));
     }
 
     #[test]
@@ -1621,7 +1235,7 @@ mod tests {
                     )
                 );
             };
-        };
+        }
         ti!(false, 0 + 1, 2 + 1, 0 + 1, 1 + 1);
         ti!(false, 0 + 1, 2 + 1, 1 + 1, 2 + 1);
         ti!(false, 0 + 1, 2 + 1, 2 + 1, 3 + 1);
@@ -1901,5 +1515,38 @@ mod tests {
         assert!(DIM == dims);
         let triangles = earcut(&coords, &hole_indices, DIM);
         assert!(triangles.len() > 4);
+    }
+
+
+    #[test]
+    fn test_linked_list() {
+        let data = vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0, 0.0];
+        let (mut ll, _) = linked_list(&data, 0, data.len(), true);
+        assert!(ll.nodes.len() == 5);
+        assert!(ll.nodes[1].idx == 1);
+        assert!(ll.nodes[1].i == 6 / DIM);
+        assert!(ll.nodes[1].i == 3);
+        assert!(ll.nodes[1].x == 1.0);
+        assert!(ll.nodes[1].y == 0.0);
+        assert!(ll.nodes[1].next_idx == 2 && ll.nodes[1].prev_idx == 4);
+        assert!(ll.nodes[4].next_idx == 1 && ll.nodes[4].prev_idx == 3);
+        assert!((4 as NodeIdx).next(&ll) == 1);
+        assert!((1 as NodeIdx).next(&ll) == 2);
+        ll.remove_node(2);
+    }
+
+    #[test]
+    fn test_iter_pairs() {
+        let data = vec![0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0];
+        let (ll, _) = linked_list(&data, 0, data.len(), true);
+        let mut v: Vec<Node> = Vec::new();
+        //        ll.iter(1..2)
+        //.zip(ll.iter(2..3))
+        ll.iter_pairs(1..2).for_each(|(p, n)| {
+            v.push(p.clone());
+            v.push(n.clone());
+        });
+        println!("{:?}", v);
+        //		assert!(false);
     }
 }
