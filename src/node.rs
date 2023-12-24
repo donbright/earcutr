@@ -1,4 +1,4 @@
-use crate::{VertIdx,NodeIdx,NULL};
+use crate::{NodeIdx, VertIdx, NULL};
 use std::ops::Sub;
 
 #[derive(Clone, Debug)]
@@ -19,7 +19,7 @@ impl<'a> Sub for &'a Node {
     type Output = Node;
 
     fn sub(self, other: &'a Node) -> Node {
-        Node::new(NULL,self.x-other.x,self.y-other.y,NULL)
+        Node::new(NULL, self.x - other.x, self.y - other.y, NULL)
     }
 }
 
@@ -43,15 +43,13 @@ impl Node {
             idx: idx,
         }
     }
-    pub fn prev<'a>(&'a self,ll:&'a LinkedLists) -> &Node {
-	&self.idx.prev(ll).node(ll)
+    pub fn prev<'a>(&'a self, ll: &'a LinkedLists) -> &Node {
+        &self.idx.prev(ll).node(ll)
     }
-    pub fn next<'a>(&'a self,ll:&'a LinkedLists) -> &Node {
-	&self.idx.next(ll).node(ll)
+    pub fn next<'a>(&'a self, ll: &'a LinkedLists) -> &Node {
+        &self.idx.next(ll).node(ll)
     }
-
 }
-
 
 // Extension Trait for NodeIdx
 // this allows us to do stuff like i.next(ll).next(ll)
@@ -61,13 +59,13 @@ pub trait NodeIndex {
     fn nextz(self, ll: &LinkedLists) -> NodeIdx;
     fn prevz(self, ll: &LinkedLists) -> NodeIdx;
     fn prev(self, ll: &LinkedLists) -> NodeIdx;
-    fn set_next(self, ll:&mut LinkedLists, i:NodeIdx);
-    fn set_nextz(self,ll:&mut LinkedLists, i:NodeIdx);
-    fn node(self,ll:&LinkedLists)->&Node;
-    fn set_prev(self, ll: &mut LinkedLists, i:NodeIdx);
-    fn set_prevz(self, ll: &mut LinkedLists, i:NodeIdx);
-    fn set_z(self, ll: &mut LinkedLists, z:i32);
-    fn set_steiner(self, ll: &mut LinkedLists, v:bool);
+    fn set_next(self, ll: &mut LinkedLists, i: NodeIdx);
+    fn set_nextz(self, ll: &mut LinkedLists, i: NodeIdx);
+    fn node(self, ll: &LinkedLists) -> &Node;
+    fn set_prev(self, ll: &mut LinkedLists, i: NodeIdx);
+    fn set_prevz(self, ll: &mut LinkedLists, i: NodeIdx);
+    fn set_z(self, ll: &mut LinkedLists, z: i32);
+    fn set_steiner(self, ll: &mut LinkedLists, v: bool);
 }
 
 // Extension Trait implementation. NodeIdx is typically just usize
@@ -90,26 +88,26 @@ impl NodeIndex for NodeIdx {
     fn prev(self, ll: &LinkedLists) -> NodeIdx {
         ll.nodes[self].prev_idx
     }
-    fn set_next(self, ll: &mut LinkedLists, i:NodeIdx) {
+    fn set_next(self, ll: &mut LinkedLists, i: NodeIdx) {
         ll.nodes.get_mut(self).unwrap().next_idx = i;
     }
-    fn set_nextz(self, ll: &mut LinkedLists, i:NodeIdx) {
+    fn set_nextz(self, ll: &mut LinkedLists, i: NodeIdx) {
         ll.nodes.get_mut(self).unwrap().nextz_idx = i;
     }
-    fn set_prev(self, ll: &mut LinkedLists, i:NodeIdx) {
+    fn set_prev(self, ll: &mut LinkedLists, i: NodeIdx) {
         ll.nodes.get_mut(self).unwrap().prev_idx = i;
     }
-    fn set_prevz(self, ll: &mut LinkedLists, i:NodeIdx) {
+    fn set_prevz(self, ll: &mut LinkedLists, i: NodeIdx) {
         ll.nodes.get_mut(self).unwrap().prevz_idx = i;
     }
-    fn set_z(self, ll: &mut LinkedLists, z:i32) {
+    fn set_z(self, ll: &mut LinkedLists, z: i32) {
         ll.nodes.get_mut(self).unwrap().z = z;
     }
-    fn set_steiner(self, ll: &mut LinkedLists, v:bool) {
+    fn set_steiner(self, ll: &mut LinkedLists, v: bool) {
         ll.nodes.get_mut(self).unwrap().steiner = v;
     }
-    fn node(self,ll:&LinkedLists)->&Node {
-    	&ll.nodes[self]
+    fn node(self, ll: &LinkedLists) -> &Node {
+        &ll.nodes[self]
     }
 }
 
@@ -121,7 +119,6 @@ pub struct LinkedLists {
     pub maxx: f64,
     pub maxy: f64,
 }
-
 
 #[macro_export]
 macro_rules! dlog {
@@ -146,8 +143,8 @@ impl LinkedLists {
             p.next_idx = last.next(self);
             p.prev_idx = last;
             let lastnextidx = last.next(self);
-            lastnextidx.set_prev(self,p.idx);
-            last.set_next(self,p.idx);
+            lastnextidx.set_prev(self, p.idx);
+            last.set_next(self, p.idx);
         };
         let result = p.idx;
         self.nodes.push(p);
@@ -158,10 +155,10 @@ impl LinkedLists {
         let ni = p_idx.next(self);
         let pz = p_idx.prevz(self);
         let nz = p_idx.nextz(self);
-        pi.set_next(self,ni);
-        ni.set_prev(self,pi);
-        pz.set_nextz(self,nz);
-        nz.set_prevz(self,pz); 
+        pi.set_next(self, ni);
+        ni.set_prev(self, pi);
+        pz.set_nextz(self, nz);
+        nz.set_prevz(self, pz);
     }
     pub fn new(size_hint: usize) -> LinkedLists {
         let mut ll = LinkedLists {
@@ -187,8 +184,8 @@ impl LinkedLists {
         });
         ll
     }
-    pub fn node(&self,i: NodeIdx) -> &Node {
-   	&self.nodes[i]
+    pub fn node(&self, i: NodeIdx) -> &Node {
+        &self.nodes[i]
     }
 }
 
@@ -252,16 +249,12 @@ impl<'a> Iterator for NodePairIterator<'a> {
             // only one branch, saves time
             self.pending_result = None;
         } else {
-            self.pending_result = Some((self.ll.node(self.cur), self.ll.node(self.cur).next(self.ll)))
+            self.pending_result =
+                Some((self.ll.node(self.cur), self.ll.node(self.cur).next(self.ll)))
         }
         cur_result
     }
 }
-
-
-
-
-
 
 pub fn pn(a: usize) -> String {
     match a {
@@ -328,108 +321,105 @@ pub fn cycle_dump(ll: &LinkedLists, p: NodeIdx) -> String {
     }
 }
 
-
-
 pub fn cycles_report(ll: &LinkedLists) -> String {
-        if ll.nodes.len() == 1 {
-            return format!("[]");
-        }
-        let mut markv: Vec<usize> = Vec::new();
-        markv.resize(ll.nodes.len(), NULL);
-        let mut cycler;
-        for i in 0..markv.len() {
-            //            if ll.freelist.contains(&i) {
-            if true {
-                markv[i] = NULL;
-            } else if markv[i] == NULL {
-                cycler = i;
-                let mut p = i;
-                let end = p.prev(ll);
-                markv[p] = cycler;
-                let mut count = 0;
-                loop {
-                    p = p.next(ll);
-                    markv[p] = cycler;
-                    count += 1;
-                    if p == end || count > ll.nodes.len() {
-                        break;
-                    }
-                } // loop
-            } // if markvi == 0
-        } //for markv
-        format!("cycles report:\n{:?}", markv)
+    if ll.nodes.len() == 1 {
+        return format!("[]");
     }
+    let mut markv: Vec<usize> = Vec::new();
+    markv.resize(ll.nodes.len(), NULL);
+    let mut cycler;
+    for i in 0..markv.len() {
+        //            if ll.freelist.contains(&i) {
+        if true {
+            markv[i] = NULL;
+        } else if markv[i] == NULL {
+            cycler = i;
+            let mut p = i;
+            let end = p.prev(ll);
+            markv[p] = cycler;
+            let mut count = 0;
+            loop {
+                p = p.next(ll);
+                markv[p] = cycler;
+                count += 1;
+                if p == end || count > ll.nodes.len() {
+                    break;
+                }
+            } // loop
+        } // if markvi == 0
+    } //for markv
+    format!("cycles report:\n{:?}", markv)
+}
 
 pub fn dump_cycle(ll: &LinkedLists, start: usize) -> String {
-        let mut s = format!("LL, #nodes: {}", ll.nodes.len());
-        //        s.push_str(&format!(" #used: {}\n", ll.nodes.len() - ll.freelist.len()));
-        s.push_str(&format!(" #used: {}\n", ll.nodes.len()));
+    let mut s = format!("LL, #nodes: {}", ll.nodes.len());
+    //        s.push_str(&format!(" #used: {}\n", ll.nodes.len() - ll.freelist.len()));
+    s.push_str(&format!(" #used: {}\n", ll.nodes.len()));
+    s.push_str(&format!(
+        " {:>3} {:>3} {:>3} {:>4} {:>4} {:>8.3} {:>8.3} {:>4} {:>4} {:>2} {:>2} {:>2}\n",
+        "#", "vi", "i", "p", "n", "x", "y", "pz", "nz", "st", "fr", "cyl"
+    ));
+    let mut startidx: usize = 0;
+    for n in &ll.nodes {
+        if n.i == start {
+            startidx = n.idx;
+        };
+    }
+    let endidx = startidx;
+    let mut idx = startidx;
+    let mut count = 0;
+    let mut state; // = 0i32;
+    loop {
+        let n = idx.node(ll);
+        state = 0; //horsh( state, n.i  as i32);
         s.push_str(&format!(
             " {:>3} {:>3} {:>3} {:>4} {:>4} {:>8.3} {:>8.3} {:>4} {:>4} {:>2} {:>2} {:>2}\n",
-            "#", "vi", "i", "p", "n", "x", "y", "pz", "nz", "st", "fr", "cyl"
+            count,
+            n.idx,
+            n.i,
+            n.prev(ll).i,
+            n.next(ll).i,
+            n.x,
+            n.y,
+            pn(n.prevz_idx),
+            pn(n.nextz_idx),
+            pb(n.steiner),
+            //                pb(ll.freelist.contains(&n.idx)),
+            false,
+            cycle_len(&ll, n.idx),
         ));
-        let mut startidx: usize = 0;
-        for n in &ll.nodes {
-            if n.i == start {
-                startidx = n.idx;
-            };
+        idx = idx.next(ll);
+        count += 1;
+        if idx == endidx || count > ll.nodes.len() {
+            break;
         }
-        let endidx = startidx;
-        let mut idx = startidx;
-        let mut count = 0;
-        let mut state; // = 0i32;
-        loop {
-            let n = idx.node(ll);
-            state = 0; //horsh( state, n.i  as i32);
-            s.push_str(&format!(
-                " {:>3} {:>3} {:>3} {:>4} {:>4} {:>8.3} {:>8.3} {:>4} {:>4} {:>2} {:>2} {:>2}\n",
-                count,
-                n.idx,
-                n.i,
-                n.prev(ll).i,
-                n.next(ll).i,
-                n.x,
-                n.y,
-                pn(n.prevz_idx),
-                pn(n.nextz_idx),
-                pb(n.steiner),
-                //                pb(ll.freelist.contains(&n.idx)),
-                false,
-                cycle_len(&ll, n.idx),
-            ));
-            idx = idx.next(ll);
-            count += 1;
-            if idx == endidx || count > ll.nodes.len() {
-                break;
-            }
-        }
-        s.push_str(&format!("dump end, horshcount:{} horsh:{}", count, state));
-        return s;
     }
+    s.push_str(&format!("dump end, horshcount:{} horsh:{}", count, state));
+    return s;
+}
 
 pub fn cycle_len(ll: &LinkedLists, p: NodeIdx) -> usize {
-        if p >= ll.nodes.len() {
-            return 0;
+    if p >= ll.nodes.len() {
+        return 0;
+    }
+    let end = p.prev(ll);
+    let mut i = p;
+    let mut count = 1;
+    loop {
+        i = i.next(ll);
+        count += 1;
+        if i == end {
+            break count;
         }
-        let end = p.prev(ll);
-        let mut i = p;
-        let mut count = 1;
-        loop {
-            i = i.next(ll);
-            count += 1;
-            if i == end {
-                break count;
-            }
-            if count > ll.nodes.len() {
-                break count;
-            }
+        if count > ll.nodes.len() {
+            break count;
         }
     }
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
 
     // https://www.cs.hmc.edu/~geoff/classes/hmc.cs070.200101/homework10/hashfuncs.$
     // https://stackoverflow.com/questions/1908492/unsigned-integer-in-javascript
@@ -470,6 +460,4 @@ mod tests {
         s.push_str(&format!(" count:{} horsh: {}", count, state));
         return s;
     }
-
-
 }
