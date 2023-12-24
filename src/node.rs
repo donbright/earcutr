@@ -43,6 +43,13 @@ impl Node {
             idx: idx,
         }
     }
+    pub fn prev<'a>(&'a self,ll:&'a LinkedLists) -> &Node {
+	&self.idx.prev(ll).node(ll)
+    }
+    pub fn next<'a>(&'a self,ll:&'a LinkedLists) -> &Node {
+	&self.idx.next(ll).node(ll)
+    }
+
 }
 
 
@@ -56,6 +63,11 @@ pub trait NodeIndex {
     fn prev(self, ll: &LinkedLists) -> NodeIdx;
     fn set_next(self, ll:&mut LinkedLists, i:NodeIdx);
     fn set_nextz(self,ll:&mut LinkedLists, i:NodeIdx);
+    fn node(self,ll:&LinkedLists)->&Node;
+    fn set_prev(self, ll: &mut LinkedLists, i:NodeIdx);
+    fn set_prevz(self, ll: &mut LinkedLists, i:NodeIdx);
+    fn set_z(self, ll: &mut LinkedLists, z:i32);
+    fn set_steiner(self, ll: &mut LinkedLists, v:bool);
 }
 
 // Extension Trait implementation
@@ -78,7 +90,21 @@ impl NodeIndex for NodeIdx {
     fn set_nextz(self, ll: &mut LinkedLists, i:NodeIdx) {
         ll.nodes.get_mut(self).unwrap().nextz_idx = i;
     }
-
+    fn set_prev(self, ll: &mut LinkedLists, i:NodeIdx) {
+        ll.nodes.get_mut(self).unwrap().prev_idx = i;
+    }
+    fn set_prevz(self, ll: &mut LinkedLists, i:NodeIdx) {
+        ll.nodes.get_mut(self).unwrap().prevz_idx = i;
+    }
+    fn set_z(self, ll: &mut LinkedLists, z:i32) {
+        ll.nodes.get_mut(self).unwrap().z = z;
+    }
+    fn set_steiner(self, ll: &mut LinkedLists, v:bool) {
+        ll.nodes.get_mut(self).unwrap().steiner = v;
+    }
+    fn node(self,ll:&LinkedLists)->&Node {
+    	&ll.nodes[self]
+    }
 }
 
 pub struct LinkedLists {
@@ -91,82 +117,12 @@ pub struct LinkedLists {
     pub usehash: bool,
 }
 
-impl LinkedLists {
-    fn get_next(&self, i:NodeIdx) -> NodeIdx {
-    	self.nodes[self.nodes[i].next_idx].idx
-    }      
-}
-
 
 #[macro_export]
 macro_rules! dlog {
 	($loglevel:expr, $($s:expr),*) => (
 		if DEBUG>=$loglevel { print!("{}:",$loglevel); println!($($s),+); }
 	)
-}
-
-// macro design: built so we can easily swap unchecked for checked,
-// to test speed. and because unsafe get_ funcs have different meaning
-// than bracket operator (indexing operator) nodes[index]
-#[macro_export]
-macro_rules! noderef {
-    ($ll:expr,$idx:expr) => {
-        unsafe{$ll.nodes.get_unchecked($idx)}
-        //&$ll.nodes[$idx]
-    };
-}
-#[macro_export]
-macro_rules! node {
-    ($ll:expr,$idx:expr) => {
-        unsafe{$ll.nodes.get_unchecked($idx)}
-        //$ll.nodes[$idx]
-    };
-}
-#[macro_export]
-macro_rules! nodemut {
-    ($ll:expr,$idx:expr) => {
-        unsafe{$ll.nodes.get_unchecked_mut($idx)}
-        //$ll.nodes.get_mut($idx).unwrap()
-    };
-}
-// Note: none of the following macros work for Left-Hand-Side of assignment.
-#[macro_export]
-macro_rules! next {
-    ($ll:expr,$idx:expr) => {
-        unsafe{$ll.nodes.get_unchecked($ll.nodes.get_unchecked($idx).next_idx)}
-        //$ll.nodes[$ll.nodes[$idx].next_idx]
-    };
-}
-#[macro_export]
-macro_rules! nextref {
-    ($ll:expr,$idx:expr) => {
-        unsafe{&$ll.nodes.get_unchecked($ll.nodes.get_unchecked($idx).next_idx)}
-        //&$ll.nodes[$ll.nodes[$idx].next_idx]
-    };
-}
-#[macro_export]
-macro_rules! prev {
-    ($ll:expr,$idx:expr) => {
-        unsafe{$ll.nodes.get_unchecked($ll.nodes.get_unchecked($idx).prev_idx)}
-        //$ll.nodes[$ll.nodes[$idx].prev_idx]
-    };
-}
-#[macro_export]
-macro_rules! prevref {
-    ($ll:expr,$idx:expr) => {
-        unsafe{&$ll.nodes.get_unchecked($ll.nodes.get_unchecked($idx).prev_idx)}
-        //&$ll.nodes[$ll.nodes[$idx].prev_idx]
-    };
-}
-#[macro_export]
-macro_rules! prevz {
-    ($ll:expr,$idx:expr) => {
-        &$ll.nodes[$ll.nodes[$idx].prevz_idx]
-        /*unsafe {
-            $ll.nodes
-                .get_unchecked($ll.nodes.get_unchecked($idx).prevz_idx)
-        }*/
-    };
 }
 
 impl LinkedLists {
@@ -182,25 +138,25 @@ impl LinkedLists {
             p.next_idx = p.idx;
             p.prev_idx = p.idx;
         } else {
-            p.next_idx = noderef!(self, last).next_idx;
+            p.next_idx = last.next(self);
             p.prev_idx = last;
-            let lastnextidx = noderef!(self, last).next_idx;
-            nodemut!(self, lastnextidx).prev_idx = p.idx;
-            nodemut!(self, last).next_idx = p.idx;
+            let lastnextidx = last.next(self);
+            lastnextidx.set_prev(self,p.idx);
+            last.set_next(self,p.idx);
         };
         let result = p.idx;
         self.nodes.push(p);
         return result;
     }
     pub fn remove_node(&mut self, p_idx: NodeIdx) {
-        let pi = noderef!(self, p_idx).prev_idx;
-        let ni = noderef!(self, p_idx).next_idx;
-        let pz = noderef!(self, p_idx).prevz_idx;
-        let nz = noderef!(self, p_idx).nextz_idx;
-        nodemut!(self, pi).next_idx = ni;
-        nodemut!(self, ni).prev_idx = pi;
-        nodemut!(self, pz).nextz_idx = nz;
-        nodemut!(self, nz).prevz_idx = pz;
+        let pi = p_idx.prev(self);
+        let ni = p_idx.next(self);
+        let pz = p_idx.prevz(self);
+        let nz = p_idx.nextz(self);
+        pi.set_next(self,ni);
+        ni.set_prev(self,pi);
+        pz.set_nextz(self,nz);
+        nz.set_prevz(self,pz); 
     }
     pub fn new(size_hint: usize) -> LinkedLists {
         let mut ll = LinkedLists {
@@ -227,6 +183,9 @@ impl LinkedLists {
         });
         ll
     }
+    pub fn node(&self,i: NodeIdx) -> &Node {
+   	&self.nodes[i]
+    }
 }
 
 pub struct NodeIterator<'a> {
@@ -239,7 +198,7 @@ pub struct NodeIterator<'a> {
 impl<'a> NodeIterator<'a> {
     pub fn new(ll: &LinkedLists, start: NodeIdx, end: NodeIdx) -> NodeIterator {
         NodeIterator {
-            pending_result: Some(noderef!(ll, start)),
+            pending_result: Some(ll.node(start)),
             cur: start,
             end: end,
             ll,
@@ -250,13 +209,13 @@ impl<'a> NodeIterator<'a> {
 impl<'a> Iterator for NodeIterator<'a> {
     type Item = &'a Node;
     fn next(&mut self) -> Option<Self::Item> {
-        self.cur = noderef!(self.ll, self.cur).next_idx;
+        self.cur = self.cur.next(self.ll);
         let cur_result = self.pending_result;
         if self.cur == self.end {
             // only one branch, saves time
             self.pending_result = None;
         } else {
-            self.pending_result = Some(noderef!(self.ll, self.cur));
+            self.pending_result = Some(self.ll.node(self.cur));
         }
         cur_result
     }
@@ -272,7 +231,7 @@ pub struct NodePairIterator<'a> {
 impl<'a> NodePairIterator<'a> {
     pub fn new(ll: &LinkedLists, start: NodeIdx, end: NodeIdx) -> NodePairIterator {
         NodePairIterator {
-            pending_result: Some((noderef!(ll, start), nextref!(ll, start))),
+            pending_result: Some((ll.node(start), start.next(ll).node(ll))),
             cur: start,
             end: end,
             ll,
@@ -283,13 +242,13 @@ impl<'a> NodePairIterator<'a> {
 impl<'a> Iterator for NodePairIterator<'a> {
     type Item = (&'a Node, &'a Node);
     fn next(&mut self) -> Option<Self::Item> {
-        self.cur = node!(self.ll, self.cur).next_idx;
+        self.cur = self.cur.next(self.ll);
         let cur_result = self.pending_result;
         if self.cur == self.end {
             // only one branch, saves time
             self.pending_result = None;
         } else {
-            self.pending_result = Some((noderef!(self.ll, self.cur), nextref!(self.ll, self.cur)))
+            self.pending_result = Some((self.ll.node(self.cur), self.ll.node(self.cur).next(self.ll)))
         }
         cur_result
     }
@@ -352,9 +311,9 @@ pub fn cycle_dump(ll: &LinkedLists, p: NodeIdx) -> String {
     let mut count = 0;
     loop {
         count += 1;
-        s.push_str(&format!("{} ", noderef!(ll, i).idx));
-        s.push_str(&format!("(i:{}), ", noderef!(ll, i).i));
-        i = noderef!(ll, i).next_idx;
+        s.push_str(&format!("{} ", i.node(ll).idx));
+        s.push_str(&format!("(i:{}), ", i.node(ll).i));
+        i = i.next(ll);
         if i == end {
             break s;
         }
@@ -381,11 +340,11 @@ pub fn cycles_report(ll: &LinkedLists) -> String {
             } else if markv[i] == NULL {
                 cycler = i;
                 let mut p = i;
-                let end = noderef!(ll, p).prev_idx;
+                let end = p.prev(ll);
                 markv[p] = cycler;
                 let mut count = 0;
                 loop {
-                    p = noderef!(ll, p).next_idx;
+                    p = p.next(ll);
                     markv[p] = cycler;
                     count += 1;
                     if p == end || count > ll.nodes.len() {
@@ -416,15 +375,15 @@ pub fn dump_cycle(ll: &LinkedLists, start: usize) -> String {
         let mut count = 0;
         let mut state; // = 0i32;
         loop {
-            let n = noderef!(ll, idx).clone();
+            let n = idx.node(ll);
             state = 0; //horsh( state, n.i  as i32);
             s.push_str(&format!(
                 " {:>3} {:>3} {:>3} {:>4} {:>4} {:>8.3} {:>8.3} {:>4} {:>4} {:>2} {:>2} {:>2}\n",
                 count,
                 n.idx,
                 n.i,
-                prev!(ll, n.idx).i,
-                next!(ll, n.idx).i,
+                n.prev(ll).i,
+                n.next(ll).i,
                 n.x,
                 n.y,
                 pn(n.prevz_idx),
@@ -434,7 +393,7 @@ pub fn dump_cycle(ll: &LinkedLists, start: usize) -> String {
                 false,
                 cycle_len(&ll, n.idx),
             ));
-            idx = next!(ll, idx).idx;
+            idx = idx.next(ll);
             count += 1;
             if idx == endidx || count > ll.nodes.len() {
                 break;
@@ -448,11 +407,11 @@ pub fn cycle_len(ll: &LinkedLists, p: NodeIdx) -> usize {
         if p >= ll.nodes.len() {
             return 0;
         }
-        let end = noderef!(ll, p).prev_idx;
+        let end = p.prev(ll);
         let mut i = p;
         let mut count = 1;
         loop {
-            i = noderef!(ll, i).next_idx;
+            i = i.next(ll);
             count += 1;
             if i == end {
                 break count;
@@ -496,9 +455,9 @@ mod tests {
         let mut count = 0;
         let mut state = 0u32;
         loop {
-            let n = noderef!(ll, idx).clone();
+            let n = idx.node(ll);
             state = horsh(state, n.i as u32);
-            idx = next!(ll, idx).idx;
+            idx = idx.next(ll);
             count += 1;
             if idx == endidx || count > ll.nodes.len() {
                 break;

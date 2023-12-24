@@ -268,6 +268,54 @@ replaced by integers which index into a single Vector of Nodes stored in
 LinkedLists struct. It will still crash if you use an index out of bounds
 but the RUST_BACKTRACE=1 will tell you exactly where it happened.
 
+It also uses Extension Traits to basically extend the type usize itself, 
+so you can have methods on indexes even though the indexes are just integers.
+For example:
+
+In C++ pointers imagine the following expression
+
+    start.prev.next = i
+
+This takes the start node, finds the previous node, then sets the next 
+node of the previous node to some other node i in this Rust 
+implementation with Extension Traits we express the same idea as 
+follows:
+
+    start.prev(ll).set_next(ll,i);
+
+    ll is a linked list reference
+    start is a usize, the index of the "start" node within ll vector of nodes
+    i is a usize, index of node within ll vector of nodes
+
+The trick here mentally is to separate the idea of a node from the idea 
+of a pointer. So once you have done that, you can comprehend that the 
+idea of a Node is separate from the indea of it's index, which is 
+basically it's pointer but the pointer is limited to be within the 
+Vector inside of the 'll' structure. So since a lot of linked list code 
+is just shuffling pointers around, in this Rust version, the code is 
+just shuffling indexes around. Since indexes are just integers, and we 
+can do Trait Extensions of integers, this allows us to mimic the syntax 
+of pointers a little bit.
+
+Now we can also do some silly tricks with Nodes themselves, implementing
+a 'next' method for Node, that just calls the trait extension method
+on the nodes own index. Then if we need to get the next Node and we have
+a Node, we can just call next() on the node. 
+
+     ll: LinkedList
+     a: Node = Node::new(blah blah blah);
+     ll.add(&node);
+     calculate_something(a,a.next(ll));
+
+So basically we have two concepts of next() here. 
+
+     i: usize   // i is an index into some linked list ll
+     i.next(ll) // calling next() on an integer i which is an index into ll
+                // this gives us the index of the next node in ll.
+
+     n: Node    // plain old struct Node
+     n.next(ll) // calling next() on a Node which gives us the next Node
+
 This might seem like a source of a slowdown - to bounds check every
 array access. However in practice the difference is barely measurable. 
 In fact, the code is built so it is relatively easy to switch to
