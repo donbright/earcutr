@@ -3,16 +3,23 @@
 
 # Earcutr
 
-This is a port of the MapBox company's Earcut computer code ( see https://github.com/mourner ) , which triangulates polygons. 
-Please see https://github.com/mapbox/earcut for more information about the original 
-javascript code. This port is to the Rust computer language, and is single-threaded.
+This is a port of the MapBox company's Earcut computer code ( see 
+https://github.com/mourner ) , which triangulates polygons. Please see 
+https://github.com/mapbox/earcut for more information about the original 
+javascript code. This port is to the Rust computer language, and is 
+single-threaded.
 
-This port is not affiliated with MapBox in any way and no endorsement is implied.  Also please note
-MapBox has their own Rust port of this code, no claim is made this is better than theirs. 
+This port is not affiliated with MapBox in any way and no endorsement is 
+implied.  Also please note MapBox has their own Rust port of this code, 
+no claim is made this is better than theirs.
 
-Please also note someone made this into a Crate (not me) for convenience, please check crates.io
+Please also note someone made this into a Crate (not me) for 
+convenience, please check crates.io
 
-![image showing an outline of a circle with a hole inside of it, with triangles inside of it](viz/circle.png "circle, earcut")
+![image showing an outline of a circle with a hole inside of it, with 
+!triangles inside of it](viz/circle.png "circle, earcut")
+
+The goal is to have identical output to MapBox's Javascript code.
 
 ## Usage
 
@@ -473,6 +480,12 @@ iteration. In theory this is slower. In practice, it is not, and in some
 cases it is actually faster, especially in find_hole_bridge. In theory
 iterators are easier to read and write, take up less code, and have less
 bugs.
+
+#### It could be faster
+
+The goal is to have identical output to MapBox's Javascript code. So if 
+there are optimizations that break that compatability they will not be 
+used. But there is of course always room for improvement.
 
 ## This triangulator in other languages
 
