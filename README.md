@@ -4,22 +4,24 @@
 # Earcutr
 
 This is a port of the MapBox company's Earcut computer code ( see 
-https://github.com/mourner ) , which triangulates polygons. Please see 
-https://github.com/mapbox/earcut for more information about the original 
-javascript code. This port is to the Rust computer language, and is 
-single-threaded.
+https://github.com/mourner, Volodymyr Agafonkin) , which triangulates 
+polygons. Please see https://github.com/mapbox/earcut for more
+information about the original javascript code. This port is to the
+Rust computer language, and is single-threaded.
 
 This port is not affiliated with MapBox in any way and no endorsement is 
 implied.  Also please note MapBox has their own Rust port of this code, 
-no claim is made this is better than theirs.
-
+no claim is made this is better than theirs. The goal is to have identical 
+output to MapBox's Javascript code however several updates have been
+made to MapBox js and this Rust port is a few years behind.
+ 
 Please also note someone made this into a Crate (not me) for 
 convenience, please check crates.io
 
 ![image showing an outline of a circle with a hole inside of it, with 
 !triangles inside of it](viz/circle.png "circle, earcut")
 
-The goal is to have identical output to MapBox's Javascript code.
+
 
 ## Usage
 
